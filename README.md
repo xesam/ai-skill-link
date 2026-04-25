@@ -59,6 +59,9 @@ ai-skills/
 # 链接单个 skill 到 Codex
 ./skill-link publish-android --cli codex
 
+# 链接单个 skill 到所有工具
+./skill-link publish-android --cli all
+
 # 链接全部 skill（预览模式）
 ./skill-link --all --cli codex --dry-run
 
@@ -169,7 +172,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 #### 常用参数
 
-- `--cli <name>`：目标 AI CLI 名称（必填）
+- `--cli <name>`：目标 AI CLI 名称（必填，`all` 表示所有支持的工具）
 - `--all`：链接仓库内所有 skill（与 `skill_name...` 互斥）
 - `--unlink` / `-u`：删除软链接而非创建（仅删除指向本仓库的链接，`--force` 可强制删除其他链接）
 - `--dry-run`：仅预览将执行的操作，不创建软链接
@@ -179,14 +182,26 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 - `--list-clis`：列出支持的 AI CLI 及其默认目录
 - `--help`：查看完整帮助
 
-当前支持的 `--cli`：
+### CLI 配置
 
-| CLI 名称 | macOS/Linux 路径 | Windows 路径 |
-|---------|-----------------|-------------|
-| `codex` | `~/.codex/skills` | `%USERPROFILE%\.codex\skills` |
-| `claude-code` / `claude` | `~/.claude/skills` | `%USERPROFILE%\.claude\skills` |
-| `gemini` | `~/.gemini/skills` | `%USERPROFILE%\.gemini\skills` |
-| `qwen-code` / `qwen` | `~/.qwen/skills` | `%USERPROFILE%\.qwen\skills` |
+支持的 CLI 由配置文件定义，分两层：
+
+| 文件 | 说明 |
+|------|------|
+| `skill-link.conf` | 随仓库提交的默认配置，内置常用 AI 工具 |
+| `skill-link.local.conf` | 用户本地配置（已 gitignore），可新增或覆盖默认条目 |
+
+`skill-link.local.conf` 中同名条目优先级更高。
+
+**格式示例：**
+
+```ini
+[clis]
+my-tool = ~/.my-tool/skills
+cursor  = ~/.cursor/skills
+```
+
+`~` 会自动展开为用户主目录。运行 `--list-clis` 查看当前合并后的完整列表。
 
 返回码：
 

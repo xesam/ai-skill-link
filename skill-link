@@ -9,6 +9,8 @@ EXIT_LINK_FAILED=4
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_REPO="$SCRIPT_DIR"
+CONF_DEFAULT="$SCRIPT_DIR/skill-link.conf"
+CONF_LOCAL="$SCRIPT_DIR/skill-link.local.conf"
 
 show_help() {
   cat <<'USAGE'
@@ -19,7 +21,7 @@ Usage:
 Link selected skills from this repository into a known AI CLI skills directory.
 
 Required:
-  -c, --cli <name>        Target AI CLI name
+  -c, --cli <name>        Target AI CLI name (use "all" to target every supported CLI)
 
 Selection:
   <skill_name...>         One or more skill names (directory names)
@@ -36,11 +38,10 @@ Options:
   -v, --verbose           Print extra logs
   -h, --help              Show this help
 
-Supported CLI names:
-  codex                   -> ~/.codex/skills
-  claude-code, claude     -> ~/.claude/skills
-  gemini                  -> ~/.gemini/skills
-  qwen-code, qwen         -> ~/.qwen/skills
+CLI configuration:
+  Defined in skill-link.conf (default) and skill-link.local.conf (user overrides).
+  Use --list-clis to see all configured CLIs.
+  Use --cli all to target every configured CLI.
 USAGE
 }
 
@@ -49,27 +50,62 @@ fail() {
   exit "$2"
 }
 
-# Return the skills directory for a known CLI alias.
+# Parse [clis] section from a config file, output "name=expanded_path" lines.
+_parse_clis() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local in_clis=0 key val
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    if [[ "$line" =~ ^\[([^\]]+)\] ]]; then
+      [[ "${BASH_REMATCH[1]}" == "clis" ]] && in_clis=1 || in_clis=0
+      continue
+    fi
+    if [[ "$in_clis" == 1 && "$line" == *=* ]]; then
+      key="$(printf '%s' "${line%%=*}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      val="$(printf '%s' "${line#*=}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [[ -z "$key" ]] && continue
+      val="${val/#\~/$HOME}"
+      printf '%s=%s\n' "$key" "$val"
+    fi
+  done < "$file"
+}
+
+# Merge default and local configs; local entries override default (last wins per key).
+_merged_clis() {
+  {
+    _parse_clis "$CONF_DEFAULT"
+    _parse_clis "$CONF_LOCAL"
+  } | awk '{
+    idx = index($0, "=")
+    if (idx > 0) { key = substr($0, 1, idx-1); entries[key] = $0 }
+  } END { for (k in entries) print entries[k] }' | sort
+}
+
+# Return the skills directory for a CLI name (from merged config).
 cli_target_dir() {
-  local cli="$1"
-  case "$cli" in
-    codex) printf '%s/.codex/skills\n' "$HOME" ;;
-    claude-code|claude) printf '%s/.claude/skills\n' "$HOME" ;;
-    gemini) printf '%s/.gemini/skills\n' "$HOME" ;;
-    qwen-code|qwen) printf '%s/.qwen/skills\n' "$HOME" ;;
-    *) return 1 ;;
-  esac
+  local cli="$1" name val
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    val="${line#*=}"
+    [[ "$name" == "$cli" ]] && printf '%s\n' "$val" && return 0
+  done < <(_merged_clis)
+  return 1
 }
 
 list_supported_clis() {
-  cat <<EOF_CLIS
-codex       -> $HOME/.codex/skills
-claude-code -> $HOME/.claude/skills
-claude      -> $HOME/.claude/skills
-gemini      -> $HOME/.gemini/skills
-qwen-code   -> $HOME/.qwen/skills
-qwen        -> $HOME/.qwen/skills
-EOF_CLIS
+  local name val
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    val="${line#*=}"
+    printf '%-12s -> %s\n' "$name" "$val"
+  done < <(_merged_clis)
+}
+
+# All CLI names from merged config, used when --cli all is specified.
+all_cli_names() {
+  _merged_clis | while IFS= read -r line; do printf '%s\n' "${line%%=*}"; done
 }
 
 list_skills() {
@@ -193,7 +229,14 @@ if [[ -z "$CLI_NAME" ]]; then
   fail "--cli is required" "$EXIT_USAGE"
 fi
 
-TARGET_DIR="$(cli_target_dir "$CLI_NAME")" || fail "Unsupported CLI: $CLI_NAME (use --list-clis)" "$EXIT_USAGE"
+# Expand "all" into canonical CLI names; validate single name otherwise.
+CLI_NAMES=()
+if [[ "$CLI_NAME" == "all" ]]; then
+  while IFS= read -r n; do CLI_NAMES+=("$n"); done < <(all_cli_names)
+else
+  cli_target_dir "$CLI_NAME" > /dev/null || fail "Unsupported CLI: $CLI_NAME (use --list-clis)" "$EXIT_USAGE"
+  CLI_NAMES=("$CLI_NAME")
+fi
 
 if [[ "$USE_ALL" == "1" ]]; then
   while IFS= read -r skill_name; do
@@ -205,150 +248,167 @@ if [[ "${#SKILLS[@]}" -eq 0 ]]; then
   fail "No skills specified. Provide skill names or use --all" "$EXIT_USAGE"
 fi
 
-if [[ "$DRY_RUN" == "1" ]]; then
-  printf '[DRY-RUN] ensure target dir: %s\n' "$TARGET_DIR"
-else
-  mkdir -p "$TARGET_DIR"
-fi
+total_failed=0
+total_conflicts=0
+total_missing=0
 
-success=0
-skipped=0
-failed=0
-conflicts=0
-missing=0
+for cli_name in "${CLI_NAMES[@]}"; do
+  TARGET_DIR="$(cli_target_dir "$cli_name")"
 
-for skill in "${SKILLS[@]}"; do
-  src="$REPO_ROOT/$skill"
-  dst="$TARGET_DIR/$skill"
+  if [[ "${#CLI_NAMES[@]}" -gt 1 ]]; then
+    printf '\n==> %s (%s)\n' "$cli_name" "$TARGET_DIR"
+  fi
 
-  if [[ "$DO_UNLINK" == "1" ]]; then
-    if [[ ! -e "$dst" && ! -L "$dst" ]]; then
-      printf '[SKIP] not linked: %s\n' "$dst"
-      skipped=$((skipped + 1))
+  if [[ "$DRY_RUN" == "1" ]]; then
+    printf '[DRY-RUN] ensure target dir: %s\n' "$TARGET_DIR"
+  else
+    mkdir -p "$TARGET_DIR"
+  fi
+
+  success=0
+  skipped=0
+  failed=0
+  conflicts=0
+  missing=0
+
+  for skill in "${SKILLS[@]}"; do
+    src="$REPO_ROOT/$skill"
+    dst="$TARGET_DIR/$skill"
+
+    if [[ "$DO_UNLINK" == "1" ]]; then
+      if [[ ! -e "$dst" && ! -L "$dst" ]]; then
+        printf '[SKIP] not linked: %s\n' "$dst"
+        skipped=$((skipped + 1))
+        continue
+      fi
+
+      if [[ -L "$dst" ]]; then
+        current="$(readlink "$dst")"
+        src_abs="$(cd "$src" 2>/dev/null && pwd)" || src_abs="$src"
+        if [[ "$current" = /* ]]; then
+          current_resolved="$current"
+        else
+          current_resolved="$(cd "$(dirname "$dst")/$current" 2>/dev/null && pwd)" || current_resolved=""
+        fi
+
+        if [[ "$current_resolved" != "$src_abs" && "$current" != "$src" ]]; then
+          if [[ "$FORCE" != "1" ]]; then
+            printf '[ERR] symlink points elsewhere (%s), use --force to remove: %s\n' "$current" "$dst" >&2
+            failed=$((failed + 1))
+            conflicts=$((conflicts + 1))
+            continue
+          fi
+        fi
+
+        if [[ "$DRY_RUN" == "1" ]]; then
+          printf '[DRY-RUN] rm %s\n' "$dst"
+          success=$((success + 1))
+        else
+          rm -f "$dst"
+          printf '[OK] unlinked: %s\n' "$dst"
+          success=$((success + 1))
+        fi
+        continue
+      fi
+
+      if [[ "$FORCE" != "1" ]]; then
+        printf '[ERR] not a symlink: %s, use --force to remove\n' "$dst" >&2
+        failed=$((failed + 1))
+        conflicts=$((conflicts + 1))
+        continue
+      fi
+      if [[ "$DRY_RUN" == "1" ]]; then
+        printf '[DRY-RUN] rm -rf %s\n' "$dst"
+        success=$((success + 1))
+      else
+        rm -rf "$dst"
+        printf '[OK] removed: %s\n' "$dst"
+        success=$((success + 1))
+      fi
       continue
+    fi
+
+    if [[ ! -d "$src" || ! -f "$src/SKILL.md" ]]; then
+      printf '[ERR] skill not found or invalid: %s\n' "$skill" >&2
+      failed=$((failed + 1))
+      missing=$((missing + 1))
+      continue
+    fi
+
+    link_src="$src"
+    # Relative links improve portability when moving parent directories together.
+    if [[ "$USE_RELATIVE" == "1" ]]; then
+      if rel="$(relpath "$TARGET_DIR" "$src")"; then
+        link_src="$rel"
+      else
+        printf '[ERR] --relative requested but python3 is not available\n' >&2
+        failed=$((failed + 1))
+        continue
+      fi
     fi
 
     if [[ -L "$dst" ]]; then
       current="$(readlink "$dst")"
-      src_abs="$(cd "$src" 2>/dev/null && pwd)" || src_abs="$src"
-      if [[ "$current" = /* ]]; then
-        current_resolved="$current"
-      else
-        current_resolved="$(cd "$(dirname "$dst")/$current" 2>/dev/null && pwd)" || current_resolved=""
+      if [[ "$current" == "$link_src" || "$current" == "$src" ]]; then
+        printf '[SKIP] already linked: %s -> %s\n' "$dst" "$current"
+        skipped=$((skipped + 1))
+        continue
       fi
-
-      if [[ "$current_resolved" != "$src_abs" && "$current" != "$src" ]]; then
-        if [[ "$FORCE" != "1" ]]; then
-          printf '[ERR] symlink points elsewhere (%s), use --force to remove: %s\n' "$current" "$dst" >&2
-          failed=$((failed + 1))
-          conflicts=$((conflicts + 1))
-          continue
+      if [[ "$FORCE" == "1" ]]; then
+        if [[ "$DRY_RUN" == "1" ]]; then
+          printf '[DRY-RUN] remove existing symlink: %s\n' "$dst"
+        else
+          rm -f "$dst"
         fi
-      fi
-
-      if [[ "$DRY_RUN" == "1" ]]; then
-        printf '[DRY-RUN] rm %s\n' "$dst"
-        success=$((success + 1))
       else
-        rm -f "$dst"
-        printf '[OK] unlinked: %s\n' "$dst"
-        success=$((success + 1))
+        printf '[ERR] destination exists with different symlink: %s\n' "$dst" >&2
+        failed=$((failed + 1))
+        conflicts=$((conflicts + 1))
+        continue
       fi
-      continue
+    elif [[ -e "$dst" ]]; then
+      if [[ "$FORCE" == "1" ]]; then
+        if [[ "$DRY_RUN" == "1" ]]; then
+          printf '[DRY-RUN] remove existing path: %s\n' "$dst"
+        else
+          rm -rf "$dst"
+        fi
+      else
+        printf '[ERR] destination exists and is not a symlink: %s\n' "$dst" >&2
+        failed=$((failed + 1))
+        conflicts=$((conflicts + 1))
+        continue
+      fi
     fi
 
-    if [[ "$FORCE" != "1" ]]; then
-      printf '[ERR] not a symlink: %s, use --force to remove\n' "$dst" >&2
-      failed=$((failed + 1))
-      conflicts=$((conflicts + 1))
-      continue
-    fi
     if [[ "$DRY_RUN" == "1" ]]; then
-      printf '[DRY-RUN] rm -rf %s\n' "$dst"
+      printf '[DRY-RUN] ln -s %s %s\n' "$link_src" "$dst"
       success=$((success + 1))
     else
-      rm -rf "$dst"
-      printf '[OK] removed: %s\n' "$dst"
-      success=$((success + 1))
-    fi
-    continue
-  fi
-
-  if [[ ! -d "$src" || ! -f "$src/SKILL.md" ]]; then
-    printf '[ERR] skill not found or invalid: %s\n' "$skill" >&2
-    failed=$((failed + 1))
-    missing=$((missing + 1))
-    continue
-  fi
-
-  link_src="$src"
-  # Relative links improve portability when moving parent directories together.
-  if [[ "$USE_RELATIVE" == "1" ]]; then
-    if rel="$(relpath "$TARGET_DIR" "$src")"; then
-      link_src="$rel"
-    else
-      printf '[ERR] --relative requested but python3 is not available\n' >&2
-      failed=$((failed + 1))
-      continue
-    fi
-  fi
-
-  if [[ -L "$dst" ]]; then
-    current="$(readlink "$dst")"
-    if [[ "$current" == "$link_src" || "$current" == "$src" ]]; then
-      printf '[SKIP] already linked: %s -> %s\n' "$dst" "$current"
-      skipped=$((skipped + 1))
-      continue
-    fi
-    if [[ "$FORCE" == "1" ]]; then
-      if [[ "$DRY_RUN" == "1" ]]; then
-        printf '[DRY-RUN] remove existing symlink: %s\n' "$dst"
+      if ln -s "$link_src" "$dst"; then
+        printf '[OK] linked: %s -> %s\n' "$dst" "$link_src"
+        success=$((success + 1))
       else
-        rm -f "$dst"
+        printf '[ERR] failed to link: %s -> %s\n' "$dst" "$link_src" >&2
+        failed=$((failed + 1))
       fi
-    else
-      printf '[ERR] destination exists with different symlink: %s\n' "$dst" >&2
-      failed=$((failed + 1))
-      conflicts=$((conflicts + 1))
-      continue
     fi
-  elif [[ -e "$dst" ]]; then
-    if [[ "$FORCE" == "1" ]]; then
-      if [[ "$DRY_RUN" == "1" ]]; then
-        printf '[DRY-RUN] remove existing path: %s\n' "$dst"
-      else
-        rm -rf "$dst"
-      fi
-    else
-      printf '[ERR] destination exists and is not a symlink: %s\n' "$dst" >&2
-      failed=$((failed + 1))
-      conflicts=$((conflicts + 1))
-      continue
-    fi
-  fi
 
-  if [[ "$DRY_RUN" == "1" ]]; then
-    printf '[DRY-RUN] ln -s %s %s\n' "$link_src" "$dst"
-    success=$((success + 1))
-  else
-    if ln -s "$link_src" "$dst"; then
-      printf '[OK] linked: %s -> %s\n' "$dst" "$link_src"
-      success=$((success + 1))
-    else
-      printf '[ERR] failed to link: %s -> %s\n' "$dst" "$link_src" >&2
-      failed=$((failed + 1))
-    fi
-  fi
+  done
+
+  printf 'Summary: success=%d skipped=%d failed=%d\n' "$success" "$skipped" "$failed"
+
+  total_failed=$((total_failed + failed))
+  total_conflicts=$((total_conflicts + conflicts))
+  total_missing=$((total_missing + missing))
 
 done
 
-printf 'Summary: success=%d skipped=%d failed=%d\n' "$success" "$skipped" "$failed"
-
-if [[ "$failed" -gt 0 ]]; then
-  if [[ "$missing" -gt 0 && "$conflicts" -eq 0 && "$success" -eq 0 && "$skipped" -eq 0 ]]; then
+if [[ "$total_failed" -gt 0 ]]; then
+  if [[ "$total_missing" -gt 0 && "$total_conflicts" -eq 0 ]]; then
     exit "$EXIT_SKILL_NOT_FOUND"
   fi
-  if [[ "$conflicts" -gt 0 ]]; then
+  if [[ "$total_conflicts" -gt 0 ]]; then
     exit "$EXIT_TARGET_CONFLICT"
   fi
   exit "$EXIT_LINK_FAILED"
