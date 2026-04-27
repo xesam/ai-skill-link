@@ -2,11 +2,39 @@
 
 [中文文档](README.zh-CN.md)
 
-A unified AI skill configuration repository for centrally managing skills across various AI CLI tools, avoiding duplicate copies.
+A cross-platform tool for managing AI CLI skills via symbolic links.
+
+## What is This?
+
+**AI Skill Link is a standalone tool**, not a skills repository itself. It helps you:
+
+1. Maintain your skills in a **separate repository** (e.g., `~/my-skills`)
+2. Create symbolic links from AI CLI tools to your skills repository
+3. Manage multiple skills repositories (personal, work, open-source)
+
+**Typical Setup:**
+
+```
+~/ai-skill-link/          # This tool (clone once)
+  ├── skill-link          # The linking script
+  ├── skill-link.conf     # Default configuration
+  └── ...
+
+~/my-skills/              # Your actual skills repository
+  ├── skill-1/
+  │   └── SKILL.md
+  ├── skill-2/
+  │   └── SKILL.md
+  └── ...
+
+~/.claude/skills/         # AI CLI skills directory (managed by tool)
+  ├── skill-1 -> ~/my-skills/skill-1  # Symlink
+  └── skill-2 -> ~/my-skills/skill-2  # Symlink
+```
 
 ## Project Goals
 
-Many AI CLI tools have their own skills configuration systems. To avoid repeatedly copying the same skill files across projects, this project provides a unified skill repository. AI CLI tools can reference needed skills via symbolic links.
+Many AI CLI tools have their own skills configuration systems. To avoid repeatedly copying the same skill files across projects, this tool creates symbolic links from AI CLI tools to your centralized skills repository.
 
 **Key Benefits:**
 
@@ -14,6 +42,7 @@ Many AI CLI tools have their own skills configuration systems. To avoid repeated
 - **Avoid Duplication**: No need to copy the same skill files across AI CLI projects
 - **Version Consistency**: Ensures all AI CLIs use the same version of skills
 - **Space Saving**: Symbolic links avoid duplicate storage across projects
+- **Multi-Repository Support**: Organize skills from different sources (personal, team, open-source)
 
 ## Project Structure
 
@@ -38,6 +67,35 @@ your-skill-name/
 ```
 
 ## Usage
+
+### Initial Setup
+
+1. **Clone this tool repository:**
+   ```bash
+   git clone <this-repo-url> ~/ai-skill-link
+   cd ~/ai-skill-link
+   ```
+
+2. **Configure your skills repository:**
+   
+   Create `skill-link.local.conf` to point to your actual skills repository:
+   
+   ```bash
+   cat > skill-link.local.conf <<'EOF'
+   [repo]
+   default = ~/my-skills
+   
+   [clis]
+   # Add custom CLI tools if needed
+   cursor = ~/.cursor/skills
+   EOF
+   ```
+
+3. **Link your skills:**
+   ```bash
+   # Link all skills to all configured tools
+   ./skill-link --all --cli all
+   ```
 
 ### Quick Start
 

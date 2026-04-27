@@ -2,11 +2,39 @@
 
 [English](README.md) | 中文
 
-一个统一的 AI 技能配置仓库，用于集中管理各种 AI CLI 工具的 skills 配置，避免重复拷贝。
+一个跨平台的 AI CLI skills 管理工具，通过软链接方式管理技能。
+
+## 这是什么？
+
+**AI Skill Link 是一个独立的工具**，而不是 skills 仓库本身。它帮助你：
+
+1. 在**独立的仓库**中维护你的 skills（例如 `~/my-skills`）
+2. 从 AI CLI 工具创建指向 skills 仓库的软链接
+3. 管理多个 skills 仓库（个人、工作、开源）
+
+**典型配置：**
+
+```
+~/ai-skill-link/          # 本工具（克隆一次）
+  ├── skill-link          # 链接脚本
+  ├── skill-link.conf     # 默认配置
+  └── ...
+
+~/my-skills/              # 你的实际 skills 仓库
+  ├── skill-1/
+  │   └── SKILL.md
+  ├── skill-2/
+  │   └── SKILL.md
+  └── ...
+
+~/.claude/skills/         # AI CLI skills 目录（由工具管理）
+  ├── skill-1 -> ~/my-skills/skill-1  # 软链接
+  └── skill-2 -> ~/my-skills/skill-2  # 软链接
+```
 
 ## 项目目标
 
-许多 AI CLI 工具都有自己的 skills 配置系统，为了避免在每个项目中重复拷贝相同的 skill 文件，本项目提供了一个统一的技能仓库。各个 AI CLI 工具可以通过软链接（symbolic links）的方式引用它们需要的 skill 文件。
+许多 AI CLI 工具都有自己的 skills 配置系统，为了避免在每个项目中重复拷贝相同的 skill 文件，本工具通过创建软链接的方式，将 AI CLI 工具连接到你的集中式 skills 仓库。
 
 **主要优势：**
 
@@ -14,6 +42,7 @@
 - **避免重复**：不需要在每个 AI CLI 项目中都拷贝相同的 skill 文件
 - **版本一致**：确保所有 AI CLI 使用的是相同版本的 skill
 - **节省空间**：通过软链接引用，避免多个项目重复存储相同的文件
+- **多仓库支持**：组织来自不同来源的 skills（个人、团队、开源）
 
 ## 项目结构
 
@@ -38,6 +67,35 @@ your-skill-name/
 ```
 
 ## 使用方法
+
+### 初始设置
+
+1. **克隆本工具仓库：**
+   ```bash
+   git clone <this-repo-url> ~/ai-skill-link
+   cd ~/ai-skill-link
+   ```
+
+2. **配置你的 skills 仓库：**
+   
+   创建 `skill-link.local.conf` 指向你的实际 skills 仓库：
+   
+   ```bash
+   cat > skill-link.local.conf <<'EOF'
+   [repo]
+   default = ~/my-skills
+   
+   [clis]
+   # 如需要可添加自定义 CLI 工具
+   cursor = ~/.cursor/skills
+   EOF
+   ```
+
+3. **链接你的 skills：**
+   ```bash
+   # 将所有 skills 链接到所有已配置的工具
+   ./skill-link --all --cli all
+   ```
 
 ### 快速开始
 
