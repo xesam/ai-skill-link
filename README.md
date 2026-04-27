@@ -1,117 +1,119 @@
 # AI Skill Link
 
-一个统一的 AI 技能配置仓库，用于集中管理各种 AI CLI 工具的 skills 配置，避免重复拷贝。
+[中文文档](README.zh-CN.md)
 
-## 项目目标
+A unified AI skill configuration repository for centrally managing skills across various AI CLI tools, avoiding duplicate copies.
 
-许多 AI CLI 工具都有自己的 skills 配置系统，为了避免在每个项目中重复拷贝相同的 skill 文件，本项目提供了一个统一的技能仓库。各个 AI CLI 工具可以通过软链接（symbolic links）的方式引用它们需要的 skill 文件。
+## Project Goals
 
-**主要优势：**
+Many AI CLI tools have their own skills configuration systems. To avoid repeatedly copying the same skill files across projects, this project provides a unified skill repository. AI CLI tools can reference needed skills via symbolic links.
 
-- **集中管理**：所有 skills 集中在一个仓库中，便于维护和更新
-- **避免重复**：不需要在每个 AI CLI 项目中都拷贝相同的 skill 文件
-- **版本一致**：确保所有 AI CLI 使用的是相同版本的 skill
-- **节省空间**：通过软链接引用，避免多个项目重复存储相同的文件
+**Key Benefits:**
 
-## 项目结构
+- **Centralized Management**: All skills in one repository for easy maintenance and updates
+- **Avoid Duplication**: No need to copy the same skill files across AI CLI projects
+- **Version Consistency**: Ensures all AI CLIs use the same version of skills
+- **Space Saving**: Symbolic links avoid duplicate storage across projects
+
+## Project Structure
 
 ```
 ai-skill-link/
-├── skill-link-example/       # 示例 skill：介绍本工具的用途和用法
-│   └── SKILL.md              # 技能定义文件
-├── skill-link                # Bash 脚本（macOS/Linux）
-├── skill-link.ps1            # PowerShell 脚本（Windows）
-├── skill-link.bat            # 批处理文件（Windows，推荐普通用户使用）
-├── skill-link.conf           # 默认 CLI 配置（随仓库提交）
-└── README.md                 # 本文件
+├── skill-link-example/       # Example skill: introduces tool usage
+│   └── SKILL.md              # Skill definition file
+├── skill-link                # Bash script (macOS/Linux)
+├── skill-link.ps1            # PowerShell script (Windows)
+├── skill-link.bat            # Batch file (Windows, recommended for regular users)
+├── skill-link.conf           # Default CLI configuration (committed to repo)
+└── README.md                 # This file
 ```
 
-每个 skill 是一个包含 `SKILL.md` 的目录，可选包含 `agents/`、`references/` 等子目录：
+Each skill is a directory containing `SKILL.md`, optionally with `agents/`, `references/` subdirectories:
 
 ```
 your-skill-name/
-├── SKILL.md              # 必需：技能定义文件
-├── agents/               # 可选：AI 代理配置
-└── references/           # 可选：参考文档
+├── SKILL.md              # Required: skill definition file
+├── agents/               # Optional: AI agent configurations
+└── references/           # Optional: reference documentation
 ```
 
-## 使用方法
+## Usage
 
-### 快速开始
+### Quick Start
 
 ```bash
-# 查看仓库中的可用 skill
+# List available skills in repository
 ./skill-link --list
 
-# 将全部 skill 链接到所有已配置的工具
+# Link all skills to all configured tools
 ./skill-link --all --cli all
 
-# 链接单个 skill 到指定工具
+# Link a single skill to a specific tool
 ./skill-link skill-link-example --cli claude-code
 ```
 
-### macOS / Linux（Bash）
+### macOS / Linux (Bash)
 
-命令格式：
+Command format:
 
 ```bash
 ./skill-link <skill_name...> --cli <name> [options]
 ./skill-link --all --cli <name> [options]
 ```
 
-常用示例：
+Common examples:
 
 ```bash
-# 查看可用 skill
+# List available skills
 ./skill-link --list
 
-# 查看已配置的 AI CLI 工具
+# List configured AI CLI tools
 ./skill-link --list-clis
 
-# 链接单个 skill 到指定工具
+# Link a single skill to a specific tool
 ./skill-link skill-link-example --cli claude-code
 
-# 链接单个 skill 到所有工具
+# Link a single skill to all tools
 ./skill-link skill-link-example --cli all
 
-# 链接全部 skill 到所有工具（预览模式）
+# Link all skills to all tools (dry-run)
 ./skill-link --all --cli all --dry-run
 
-# 链接全部 skill 到所有工具（实际执行）
+# Link all skills to all tools (execute)
 ./skill-link --all --cli all
 
-# 强制覆盖已有同名目标
+# Force overwrite existing targets
 ./skill-link skill-link-example --cli claude-code --force
 
-# 删除已链接的 skill
+# Remove linked skills
 ./skill-link skill-link-example --cli claude-code --unlink
 
-# 删除全部已链接的 skill（所有工具）
+# Remove all linked skills (all tools)
 ./skill-link --all --cli all --unlink
 
-# 创建相对软链接
+# Create relative symlinks
 ./skill-link skill-link-example --cli claude-code --relative
 ```
 
-### Windows（推荐 - 使用批处理文件）
+### Windows (Recommended - Batch File)
 
-对于普通用户，直接使用 `skill-link.bat`，无需配置 PowerShell 执行策略。
+For regular users, use `skill-link.bat` directly without configuring PowerShell execution policy.
 
-**使用步骤：**
+**Steps:**
 
-1. 打开命令提示符（按 `Win + R`，输入 `cmd`，回车）
-2. 进入本仓库目录：
+1. Open Command Prompt (press `Win + R`, type `cmd`, press Enter)
+2. Navigate to repository directory:
    ```cmd
    cd e:\work-repos\ai-skill-link
    ```
-3. 运行命令：
+3. Run commands:
    ```cmd
    skill-link.bat --list
    skill-link.bat --all --cli all --dry-run
    skill-link.bat --all --cli all
    ```
 
-常用命令：
+Common commands:
 
 ```cmd
 skill-link.bat --list
@@ -125,61 +127,61 @@ skill-link.bat --all --cli all --unlink
 skill-link.bat skill-link-example --cli claude-code --force
 ```
 
-**权限说明：**
+**Permission Requirements:**
 
-Windows 上创建符号链接需要以下任一条件：
+Creating symbolic links on Windows requires one of:
 
-1. **以管理员身份运行命令提示符**（推荐临时使用）
-   - 右键点击「命令提示符」→「以管理员身份运行」
+1. **Run Command Prompt as Administrator** (recommended for temporary use)
+   - Right-click "Command Prompt" → "Run as administrator"
 
-2. **开启开发者模式**（推荐长期开发使用）
-   - 设置 → 更新与安全 → 开发者选项 → 开启「开发者模式」
+2. **Enable Developer Mode** (recommended for long-term development)
+   - Settings → Update & Security → Developer Options → Enable "Developer Mode"
 
-**提示：** 如果看到错误 `You do not have sufficient privilege to perform this operation`，说明需要上述权限之一。
+**Note:** If you see error `You do not have sufficient privilege to perform this operation`, you need one of the above.
 
-### Windows（PowerShell - 高级用户）
+### Windows (PowerShell - Advanced Users)
 
-临时绕过执行策略：
+Temporarily bypass execution policy:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\skill-link.ps1 --list
 powershell -ExecutionPolicy Bypass -File .\skill-link.ps1 --all --cli all
 ```
 
-或永久修改当前用户执行策略（需要管理员权限）后直接使用：
+Or permanently modify current user execution policy (requires admin rights) then use directly:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 .\skill-link.ps1 --all --cli all
 ```
 
-### 参数说明
+### Parameters
 
-| 参数 | 简写 | 说明 |
-|------|------|------|
-| `--cli <name>` | `-c` | 目标工具名称（必填），`all` 表示所有已配置工具 |
-| `--all` | `-a` | 操作仓库内全部 skill（与显式指定 skill 名互斥） |
-| `--unlink` | `-u` | 删除软链接而非创建（仅删除指向本仓库的链接） |
-| `--dry-run` | `-n` | 预览模式，不实际修改文件 |
-| `--force` | `-f` | 目标已存在时强制覆盖 |
-| `--relative` | | 创建相对路径软链接 |
-| `--repo <name-or-path>` | `-r` | 指定 skill 仓库（命名 repo 或路径） |
-| `--list` | `-l` | 列出仓库中的可用 skill |
-| `--list-clis` | | 列出已配置的 CLI 工具及其目录 |
-| `--help` | `-h` | 显示帮助信息 |
+| Parameter | Short | Description |
+|-----------|-------|-------------|
+| `--cli <name>` | `-c` | Target tool name (required), `all` for all configured tools |
+| `--all` | `-a` | Operate on all skills in repository (mutually exclusive with explicit skill names) |
+| `--unlink` | `-u` | Remove symlinks instead of creating them (only removes links pointing to this repo) |
+| `--dry-run` | `-n` | Preview mode, don't actually modify files |
+| `--force` | `-f` | Force overwrite if target exists |
+| `--relative` | | Create relative path symlinks |
+| `--repo <name-or-path>` | `-r` | Specify skill repository (named repo or path) |
+| `--list` | `-l` | List available skills in repository |
+| `--list-clis` | | List configured CLI tools and their directories |
+| `--help` | `-h` | Show help information |
 
-### 配置说明
+### Configuration
 
-配置文件分两层：
+Configuration files are layered:
 
-| 文件 | 说明 |
-|------|------|
-| `skill-link.conf` | 随仓库提交的默认配置，内置常用 AI 工具 |
-| `skill-link.local.conf` | 用户本地配置（已 gitignore），可新增或覆盖默认条目 |
+| File | Description |
+|------|-------------|
+| `skill-link.conf` | Default configuration committed to repo, includes common AI tools |
+| `skill-link.local.conf` | User local configuration (gitignored), can add or override default entries |
 
-`skill-link.local.conf` 中同名条目优先级更高。
+Entries in `skill-link.local.conf` take precedence.
 
-**配置格式：**
+**Configuration Format:**
 
 ```ini
 [repo]
@@ -192,32 +194,32 @@ cursor  = ~/.cursor/skills
 my-tool = ~/path/to/my-tool/skills
 ```
 
-**[repo] 配置说明：**
+**[repo] Configuration:**
 
-支持多个命名 repo，用于组织不同来源的 skills（个人、团队、开源等）：
+Supports multiple named repos for organizing skills from different sources (personal, team, open-source, etc.):
 
-- `default`：特殊名称，表示不指定 `--repo` 参数时使用的默认仓库
-- 其他名称：自定义命名 repo，通过 `--repo <name>` 引用
-- 使用示例：
-  - `./skill-link --list` → 使用 `default` repo
-  - `./skill-link --list --repo work` → 使用命名 repo `work`
-  - `./skill-link --list --repo /tmp/test` → 使用临时路径
-- 优先级：命令行 `--repo` > 配置 `[repo] default` > 脚本所在目录
+- `default`: Special name, used when `--repo` parameter is not specified
+- Other names: Custom named repos, referenced via `--repo <name>`
+- Usage examples:
+  - `./skill-link --list` → uses `default` repo
+  - `./skill-link --list --repo work` → uses named repo `work`
+  - `./skill-link --list --repo /tmp/test` → uses temporary path
+- Priority: command-line `--repo` > config `[repo] default` > script directory
 
-**[clis] 配置说明：**
+**[clis] Configuration:**
 
-定义 AI CLI 工具及其 skills 目录路径：
+Defines AI CLI tools and their skills directory paths:
 
-- `~` 自动展开为用户主目录
-- 运行 `--list-clis` 查看当前合并后的完整列表
-- `--cli all` 会操作所有已配置的 CLI 工具
+- `~` automatically expands to user home directory
+- Run `--list-clis` to see current merged list
+- `--cli all` operates on all configured CLI tools
 
-### 返回码
+### Exit Codes
 
-| 代码 | 含义 |
-|------|------|
-| `0` | 全部成功 |
-| `1` | 参数错误（如缺少 `--cli`） |
-| `2` | skill 不存在或无有效 `SKILL.md` |
-| `3` | 目标冲突（已存在且未使用 `--force`） |
-| `4` | 其他链接失败 |
+| Code | Meaning |
+|------|---------|
+| `0` | All successful |
+| `1` | Parameter error (e.g., missing `--cli`) |
+| `2` | Skill not found or no valid `SKILL.md` |
+| `3` | Target conflict (exists and `--force` not used) |
+| `4` | Other link failures |
