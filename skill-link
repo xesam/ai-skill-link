@@ -72,6 +72,62 @@ _parse_clis() {
   done < "$file"
 }
 
+# Parse [repo] section from a config file, output "name=expanded_path" lines.
+_parse_repos() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local in_repo=0 key val
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    if [[ "$line" =~ ^\[([^\]]+)\] ]]; then
+      [[ "${BASH_REMATCH[1]}" == "repo" ]] && in_repo=1 || in_repo=0
+      continue
+    fi
+    if [[ "$in_repo" == 1 && "$line" == *=* ]]; then
+      key="$(printf '%s' "${line%%=*}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      val="$(printf '%s' "${line#*=}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      [[ -z "$key" ]] && continue
+      val="${val/#\~/$HOME}"
+      printf '%s=%s\n' "$key" "$val"
+    fi
+  done < "$file"
+}
+
+# Merge default and local repo configs; local entries override default.
+_merged_repos() {
+  {
+    _parse_repos "$CONF_DEFAULT"
+    _parse_repos "$CONF_LOCAL"
+  } | awk '{
+    idx = index($0, "=")
+    if (idx > 0) { key = substr($0, 1, idx-1); entries[key] = $0 }
+  } END { for (k in entries) print entries[k] }'
+}
+
+# Resolve repo name or path to actual path.
+# If input matches a named repo in config, return its path; otherwise return input as-is.
+resolve_repo() {
+  local input="$1" name val
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    val="${line#*=}"
+    [[ "$name" == "$input" ]] && printf '%s\n' "$val" && return 0
+  done < <(_merged_repos)
+  printf '%s\n' "$input"
+}
+
+# Get default repo path: config [repo] default, or fallback to script directory.
+default_repo() {
+  local name val
+  while IFS= read -r line; do
+    name="${line%%=*}"
+    val="${line#*=}"
+    [[ "$name" == "default" ]] && printf '%s\n' "$val" && return 0
+  done < <(_merged_repos)
+  printf '%s\n' "$DEFAULT_REPO"
+}
+
 # Merge default and local configs; local entries override default (last wins per key).
 _merged_clis() {
   {
@@ -132,7 +188,7 @@ PY
 }
 
 CLI_NAME=""
-REPO_ROOT="$DEFAULT_REPO"
+REPO_ARG=""
 USE_ALL=0
 FORCE=0
 DRY_RUN=0
@@ -153,7 +209,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -r|--repo)
       [[ $# -ge 2 ]] || fail "Missing value for $1" "$EXIT_USAGE"
-      REPO_ROOT="$2"
+      REPO_ARG="$2"
       shift 2
       ;;
     -a|--all)
@@ -208,6 +264,13 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# Determine REPO_ROOT: --repo arg > config default > script directory
+if [[ -n "$REPO_ARG" ]]; then
+  REPO_ROOT="$(resolve_repo "$REPO_ARG")"
+else
+  REPO_ROOT="$(default_repo)"
+fi
 
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 

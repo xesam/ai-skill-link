@@ -76,6 +76,53 @@ function Read-CliSection {
     return $result
 }
 
+# Parse [repo] section from a config file, return ordered hashtable of name->path.
+function Read-RepoSection {
+    param([string]$File)
+    if (-not (Test-Path $File)) { return @{} }
+    $result = [ordered]@{}
+    $inRepo = $false
+    foreach ($line in (Get-Content $File)) {
+        if ($line -match '^\s*[#;]' -or $line -match '^\s*$') { continue }
+        if ($line -match '^\[([^\]]+)\]') {
+            $inRepo = ($matches[1].Trim() -eq 'repo')
+            continue
+        }
+        if ($inRepo -and $line -match '^([^=]+)=(.+)$') {
+            $name = $matches[1].Trim()
+            $path = $matches[2].Trim()
+            $home = if ($env:HOME) { $env:HOME } else { $env:USERPROFILE }
+            if ($path.StartsWith('~')) { $path = $home + $path.Substring(1) }
+            if ($name) { $result[$name] = $path }
+        }
+    }
+    return $result
+}
+
+# Merge default and local repo configs; local entries override default.
+function Get-MergedRepos {
+    $map = [ordered]@{}
+    foreach ($entry in (Read-RepoSection $CONF_DEFAULT).GetEnumerator()) { $map[$entry.Key] = $entry.Value }
+    foreach ($entry in (Read-RepoSection $CONF_LOCAL).GetEnumerator())   { $map[$entry.Key] = $entry.Value }
+    return $map
+}
+
+# Resolve repo name or path to actual path.
+# If input matches a named repo in config, return its path; otherwise return input as-is.
+function Resolve-Repo {
+    param([string]$Input)
+    $map = Get-MergedRepos
+    if ($map.Contains($Input)) { return $map[$Input] }
+    return $Input
+}
+
+# Get default repo path: config [repo] default, or fallback to script directory.
+function Get-DefaultRepo {
+    $map = Get-MergedRepos
+    if ($map.Contains('default')) { return $map['default'] }
+    return $DEFAULT_REPO
+}
+
 # Merge default and local configs; local entries override default.
 function Get-MergedClis {
     $map = [ordered]@{}
@@ -168,7 +215,7 @@ function Get-RelativePath {
 
 # Parse arguments
 $CLI_NAME = ""
-$REPO_ROOT = $DEFAULT_REPO
+$REPO_ARG = ""
 $USE_ALL = $false
 $FORCE = $false
 $DRY_RUN = $false
@@ -194,7 +241,7 @@ while ($i -lt $args_array.Length) {
             if ($i + 1 -ge $args_array.Length) {
                 Write-Fail "Missing value for $arg" $EXIT_USAGE
             }
-            $REPO_ROOT = $args_array[++$i]
+            $REPO_ARG = $args_array[++$i]
         }
         { $_ -in "-a", "--all" } {
             $USE_ALL = $true
@@ -239,6 +286,13 @@ while ($i -lt $args_array.Length) {
         }
     }
     $i++
+}
+
+# Determine REPO_ROOT: --repo arg > config default > script directory
+if ($REPO_ARG) {
+    $REPO_ROOT = Resolve-Repo -Input $REPO_ARG
+} else {
+    $REPO_ROOT = Get-DefaultRepo
 }
 
 $REPO_ROOT = Resolve-Path $REPO_ROOT | Select-Object -ExpandProperty Path

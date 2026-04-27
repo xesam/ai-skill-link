@@ -1,4 +1,4 @@
-# AI Skills
+# AI Skill Link
 
 一个统一的 AI 技能配置仓库，用于集中管理各种 AI CLI 工具的 skills 配置，避免重复拷贝。
 
@@ -163,14 +163,14 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 | `--dry-run` | `-n` | 预览模式，不实际修改文件 |
 | `--force` | `-f` | 目标已存在时强制覆盖 |
 | `--relative` | | 创建相对路径软链接 |
-| `--repo <dir>` | `-r` | 指定 skill 仓库目录（默认为脚本所在目录） |
+| `--repo <name-or-path>` | `-r` | 指定 skill 仓库（命名 repo 或路径） |
 | `--list` | `-l` | 列出仓库中的可用 skill |
 | `--list-clis` | | 列出已配置的 CLI 工具及其目录 |
 | `--help` | `-h` | 显示帮助信息 |
 
-### CLI 配置
+### 配置说明
 
-支持的工具由配置文件定义，分两层：
+配置文件分两层：
 
 | 文件 | 说明 |
 |------|------|
@@ -179,15 +179,38 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 
 `skill-link.local.conf` 中同名条目优先级更高。
 
-**格式：**
+**配置格式：**
 
 ```ini
+[repo]
+default = ~/my-skills
+work    = ~/work-skills
+oss     = ~/opensource-skills
+
 [clis]
 cursor  = ~/.cursor/skills
 my-tool = ~/path/to/my-tool/skills
 ```
 
-`~` 自动展开为用户主目录。运行 `--list-clis` 查看当前合并后的完整列表。
+**[repo] 配置说明：**
+
+支持多个命名 repo，用于组织不同来源的 skills（个人、团队、开源等）：
+
+- `default`：特殊名称，表示不指定 `--repo` 参数时使用的默认仓库
+- 其他名称：自定义命名 repo，通过 `--repo <name>` 引用
+- 使用示例：
+  - `./skill-link --list` → 使用 `default` repo
+  - `./skill-link --list --repo work` → 使用命名 repo `work`
+  - `./skill-link --list --repo /tmp/test` → 使用临时路径
+- 优先级：命令行 `--repo` > 配置 `[repo] default` > 脚本所在目录
+
+**[clis] 配置说明：**
+
+定义 AI CLI 工具及其 skills 目录路径：
+
+- `~` 自动展开为用户主目录
+- 运行 `--list-clis` 查看当前合并后的完整列表
+- `--cli all` 会操作所有已配置的 CLI 工具
 
 ### 返回码
 
