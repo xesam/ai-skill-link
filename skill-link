@@ -173,6 +173,21 @@ list_skills() {
     | sort -u
 }
 
+# Find which repo contains a skill; return full path or empty if not found.
+find_skill_path() {
+  local skill_name="$1"
+  local name val candidate
+  while IFS= read -r line; do
+    val="${line#*=}"
+    candidate="$val/$skill_name"
+    if [[ -d "$candidate" && -f "$candidate/SKILL.md" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done < <(_merged_repos)
+  return 1
+}
+
 relpath() {
   local from="$1"
   local to="$2"
@@ -199,6 +214,7 @@ DO_LIST=0
 DO_LIST_CLIS=0
 
 SKILLS=()
+SKILL_PATHS=()  # skill_name:full_path pairs
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -272,10 +288,31 @@ else
   REPO_ROOT="$(default_repo)"
 fi
 
+if [[ ! -d "$REPO_ROOT" ]]; then
+  fail "Repository directory does not exist: $REPO_ROOT" "$EXIT_USAGE"
+fi
+
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
 
 if [[ "$DO_LIST" == "1" ]]; then
-  list_skills "$REPO_ROOT"
+  if [[ -n "$REPO_ARG" ]]; then
+    list_skills "$REPO_ROOT"
+  else
+    repo_entries=()
+    while IFS= read -r line; do repo_entries+=("$line"); done < <(_merged_repos)
+    if [[ "${#repo_entries[@]}" -eq 0 ]]; then
+      list_skills "$REPO_ROOT"
+    else
+      show_header=0
+      [[ "${#repo_entries[@]}" -gt 1 ]] && show_header=1
+      for entry in "${repo_entries[@]}"; do
+        rname="${entry%%=*}"
+        rpath="${entry#*=}"
+        [[ "$show_header" == "1" ]] && printf '[%s]\n' "$rname"
+        list_skills "$rpath"
+      done
+    fi
+  fi
   exit 0
 fi
 
@@ -302,9 +339,53 @@ else
 fi
 
 if [[ "$USE_ALL" == "1" ]]; then
-  while IFS= read -r skill_name; do
-    SKILLS+=("$skill_name")
-  done < <(list_skills "$REPO_ROOT")
+  if [[ -n "$REPO_ARG" ]]; then
+    # --repo specified: use only that repo
+    while IFS= read -r skill_name; do
+      SKILLS+=("$skill_name")
+      SKILL_PATHS+=("$skill_name:$REPO_ROOT/$skill_name")
+    done < <(list_skills "$REPO_ROOT")
+  else
+    # No --repo: collect skills from all configured repos
+    repo_entries=()
+    while IFS= read -r line; do repo_entries+=("$line"); done < <(_merged_repos)
+    if [[ "${#repo_entries[@]}" -eq 0 ]]; then
+      while IFS= read -r skill_name; do
+        SKILLS+=("$skill_name")
+        SKILL_PATHS+=("$skill_name:$REPO_ROOT/$skill_name")
+      done < <(list_skills "$REPO_ROOT")
+    else
+      # Collect skills from all repos, deduplicating by name (first wins)
+      seen_skills=""
+      for entry in "${repo_entries[@]}"; do
+        rpath="${entry#*=}"
+        while IFS= read -r skill_name; do
+          # Check if already seen using string match
+          if [[ ! "$seen_skills" =~ (^|:)"$skill_name"(:|$) ]]; then
+            SKILLS+=("$skill_name")
+            SKILL_PATHS+=("$skill_name:$rpath/$skill_name")
+            seen_skills="$seen_skills:$skill_name:"
+          fi
+        done < <(list_skills "$rpath")
+      done
+    fi
+  fi
+else
+  # Manual skill specification: find each skill in repos
+  if [[ -z "$REPO_ARG" ]]; then
+    # No --repo: search all repos for each skill
+    for skill in "${SKILLS[@]}"; do
+      if skill_path="$(find_skill_path "$skill")"; then
+        SKILL_PATHS+=("$skill:$skill_path")
+      fi
+      # If not found, SKILL_PATHS won't have an entry; will fall back to REPO_ROOT later
+    done
+  else
+    # --repo specified: use only that repo
+    for skill in "${SKILLS[@]}"; do
+      SKILL_PATHS+=("$skill:$REPO_ROOT/$skill")
+    done
+  fi
 fi
 
 if [[ "${#SKILLS[@]}" -eq 0 ]]; then
@@ -335,7 +416,18 @@ for cli_name in "${CLI_NAMES[@]}"; do
   missing=0
 
   for skill in "${SKILLS[@]}"; do
-    src="$REPO_ROOT/$skill"
+    # Look up full path from SKILL_PATHS array
+    src=""
+    if [[ "${#SKILL_PATHS[@]}" -gt 0 ]]; then
+      for mapping in "${SKILL_PATHS[@]}"; do
+        if [[ "$mapping" == "$skill":* ]]; then
+          src="${mapping#*:}"
+          break
+        fi
+      done
+    fi
+    # Fallback to REPO_ROOT if not found (manual skill specification)
+    [[ -z "$src" ]] && src="$REPO_ROOT/$skill"
     dst="$TARGET_DIR/$skill"
 
     if [[ "$DO_UNLINK" == "1" ]]; then
