@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+VERSION="0.2.0"
+
 # Exit codes
 EXIT_USAGE=1
 EXIT_SKILL_NOT_FOUND=2
@@ -36,6 +38,7 @@ Options:
       --list-clis         List supported CLI names and target paths
       --relative          Create relative symlinks instead of absolute symlinks
   -v, --verbose           Print extra logs
+      --version           Show version and exit
   -h, --help              Show this help
 
 CLI configuration:
@@ -259,6 +262,10 @@ while [[ $# -gt 0 ]]; do
     --list-clis)
       DO_LIST_CLIS=1
       shift
+      ;;
+    --version)
+      echo "skill-link version $VERSION"
+      exit 0
       ;;
     -h|--help)
       show_help

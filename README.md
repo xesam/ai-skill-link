@@ -100,13 +100,13 @@ your-skill-name/
 ### Quick Start
 
 ```bash
-# List available skills in repository
+# List available skills from all configured repositories
 ./skill-link --list
 
-# Link all skills to all configured tools
+# Link all skills from all repositories to all configured tools
 ./skill-link --all --cli all
 
-# Link a single skill to a specific tool
+# Link a single skill to a specific tool (auto-searches all repos)
 ./skill-link skill-link-example --cli claude-code
 ```
 
@@ -122,22 +122,32 @@ Command format:
 Common examples:
 
 ```bash
-# List available skills
+# List all skills from all configured repositories
 ./skill-link --list
+
+# List skills from a specific repository
+./skill-link --list --repo default
+./skill-link --list --repo work
 
 # List configured AI CLI tools
 ./skill-link --list-clis
 
-# Link a single skill to a specific tool
+# Link a skill (auto-searches all repos)
 ./skill-link skill-link-example --cli claude-code
+
+# Link a skill from specific repository
+./skill-link skill-link-example --repo work --cli claude-code
 
 # Link a single skill to all tools
 ./skill-link skill-link-example --cli all
 
-# Link all skills to all tools (dry-run)
+# Link all skills from all repos to all tools (dry-run)
 ./skill-link --all --cli all --dry-run
 
-# Link all skills to all tools (execute)
+# Link all skills from specific repo to all tools
+./skill-link --all --repo work --cli all
+
+# Link all skills from all repos to all tools (execute)
 ./skill-link --all --cli all
 
 # Force overwrite existing targets
@@ -146,12 +156,25 @@ Common examples:
 # Remove linked skills
 ./skill-link skill-link-example --cli claude-code --unlink
 
-# Remove all linked skills (all tools)
+# Remove all linked skills from all repos (all tools)
 ./skill-link --all --cli all --unlink
 
 # Create relative symlinks
 ./skill-link skill-link-example --cli claude-code --relative
 ```
+
+### Multi-Repository Behavior
+
+**Default behavior (no `--repo` specified):**
+- `--list`: Shows skills from **all** configured repositories
+- `--all`: Links skills from **all** configured repositories  
+- Manual skill names: **Auto-searches across all repositories**
+
+**With `--repo <name>`:**
+- Only operates on the specified repository
+- Useful when you have duplicate skill names in different repos
+
+**Priority order:** When a skill exists in multiple repos, the first match is used (repo order in config).
 
 ### Windows (Recommended - Batch File)
 

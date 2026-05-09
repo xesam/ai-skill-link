@@ -100,13 +100,13 @@ your-skill-name/
 ### 快速开始
 
 ```bash
-# 查看仓库中的可用 skill
+# 查看所有已配置仓库中的可用 skill
 ./skill-link --list
 
-# 将全部 skill 链接到所有已配置的工具
+# 将所有仓库的全部 skill 链接到所有已配置的工具
 ./skill-link --all --cli all
 
-# 链接单个 skill 到指定工具
+# 链接单个 skill 到指定工具（自动在所有仓库中查找）
 ./skill-link skill-link-example --cli claude-code
 ```
 
@@ -122,22 +122,32 @@ your-skill-name/
 常用示例：
 
 ```bash
-# 查看可用 skill
+# 查看所有已配置仓库的 skill
 ./skill-link --list
+
+# 查看指定仓库的 skill
+./skill-link --list --repo default
+./skill-link --list --repo work
 
 # 查看已配置的 AI CLI 工具
 ./skill-link --list-clis
 
-# 链接单个 skill 到指定工具
+# 链接 skill（自动在所有仓库中查找）
 ./skill-link skill-link-example --cli claude-code
+
+# 从指定仓库链接 skill
+./skill-link skill-link-example --repo work --cli claude-code
 
 # 链接单个 skill 到所有工具
 ./skill-link skill-link-example --cli all
 
-# 链接全部 skill 到所有工具（预览模式）
+# 链接所有仓库的全部 skill 到所有工具（预览模式）
 ./skill-link --all --cli all --dry-run
 
-# 链接全部 skill 到所有工具（实际执行）
+# 只链接指定仓库的全部 skill 到所有工具
+./skill-link --all --repo work --cli all
+
+# 链接所有仓库的全部 skill 到所有工具（实际执行）
 ./skill-link --all --cli all
 
 # 强制覆盖已有同名目标
@@ -145,6 +155,26 @@ your-skill-name/
 
 # 删除已链接的 skill
 ./skill-link skill-link-example --cli claude-code --unlink
+
+# 删除所有仓库的全部已链接 skill（所有工具）
+./skill-link --all --cli all --unlink
+
+# 创建相对路径符号链接
+./skill-link skill-link-example --cli claude-code --relative
+```
+
+### 多仓库行为说明
+
+**默认行为（不指定 `--repo`）：**
+- `--list`：显示**所有**已配置仓库的 skill
+- `--all`：链接**所有**已配置仓库的 skill
+- 手动指定 skill 名称：**自动在所有仓库中查找**
+
+**使用 `--repo <名称>` 时：**
+- 仅操作指定的仓库
+- 适用于不同仓库有同名 skill 的情况
+
+**优先级顺序：** 当多个仓库包含同名 skill 时，使用第一个匹配的（按配置文件中仓库顺序）。
 
 # 删除全部已链接的 skill（所有工具）
 ./skill-link --all --cli all --unlink
