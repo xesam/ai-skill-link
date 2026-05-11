@@ -192,17 +192,23 @@ find_skill_path() {
 }
 
 relpath() {
-  local from="$1"
-  local to="$2"
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$from" "$to" <<'PY'
-import os
-import sys
-print(os.path.relpath(sys.argv[2], sys.argv[1]))
-PY
-    return 0
-  fi
-  return 1
+  local from="$1" to="$2"
+  local rel="" i=0
+  IFS='/' read -ra from_parts <<< "$from"
+  IFS='/' read -ra to_parts <<< "$to"
+  local from_len=${#from_parts[@]}
+  while [[ $i -lt $from_len && "${from_parts[$i]}" == "${to_parts[$i]}" ]]; do
+    ((i++)) || true
+  done
+  for (( j=i; j<${#from_parts[@]}; j++ )); do
+    rel="../$rel"
+  done
+  for (( j=i; j<${#to_parts[@]}; j++ )); do
+    rel="${rel}${to_parts[$j]}/"
+  done
+  rel="${rel%/}"
+  [[ -z "$rel" ]] && rel="."
+  printf '%s\n' "$rel"
 }
 
 CLI_NAME=""
@@ -500,13 +506,8 @@ for cli_name in "${CLI_NAMES[@]}"; do
     link_src="$src"
     # Relative links improve portability when moving parent directories together.
     if [[ "$USE_RELATIVE" == "1" ]]; then
-      if rel="$(relpath "$TARGET_DIR" "$src")"; then
-        link_src="$rel"
-      else
-        printf '[ERR] --relative requested but python3 is not available\n' >&2
-        failed=$((failed + 1))
-        continue
-      fi
+      rel="$(relpath "$TARGET_DIR" "$src")"
+      link_src="$rel"
     fi
 
     if [[ -L "$dst" ]]; then
