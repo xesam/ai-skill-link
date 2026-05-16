@@ -20,7 +20,7 @@ Usage:
   skill-link <skill_name...> --cli <name> [options]
   skill-link --all --cli <name> [options]
 
-Link selected skills from this repository into a known AI CLI skills directory.
+Bridge skills from configured repositories into AI CLI tools via symlinks — no central store, no copies.
 
 Required:
   -c, --cli <name>        Target AI CLI name (use "all" to target every supported CLI)
@@ -51,6 +51,11 @@ USAGE
 fail() {
   printf '[ERR] %s\n' "$1" >&2
   exit "$2"
+}
+
+verbose_log() {
+  [[ "$VERBOSE" == "1" ]] || return 0
+  printf '[VERBOSE] %s\n' "$*" >&2
 }
 
 # Parse [clis] section from a config file, output "name=expanded_path" lines.
@@ -194,6 +199,8 @@ find_skill_path() {
 relpath() {
   local from="$1" to="$2"
   local rel="" i=0
+  from="$(sed 's#//*#/#g; s#/$##' <<< "$from")"
+  to="$(sed 's#//*#/#g; s#/$##' <<< "$to")"
   IFS='/' read -ra from_parts <<< "$from"
   IFS='/' read -ra to_parts <<< "$to"
   local from_len=${#from_parts[@]}
@@ -306,6 +313,7 @@ if [[ ! -d "$REPO_ROOT" ]]; then
 fi
 
 REPO_ROOT="$(cd "$REPO_ROOT" && pwd)"
+verbose_log "repo root resolved to: $REPO_ROOT"
 
 if [[ "$DO_LIST" == "1" ]]; then
   if [[ -n "$REPO_ARG" ]]; then
@@ -351,12 +359,15 @@ else
   CLI_NAMES=("$CLI_NAME")
 fi
 
+verbose_log "target CLI(s): ${CLI_NAMES[*]}"
+
 if [[ "$USE_ALL" == "1" ]]; then
   if [[ -n "$REPO_ARG" ]]; then
     # --repo specified: use only that repo
     while IFS= read -r skill_name; do
       SKILLS+=("$skill_name")
       SKILL_PATHS+=("$skill_name:$REPO_ROOT/$skill_name")
+      verbose_log "found skill '$skill_name' in repo '$REPO_ROOT'"
     done < <(list_skills "$REPO_ROOT")
   else
     # No --repo: collect skills from all configured repos
@@ -373,11 +384,12 @@ if [[ "$USE_ALL" == "1" ]]; then
       for entry in "${repo_entries[@]}"; do
         rpath="${entry#*=}"
         while IFS= read -r skill_name; do
-          # Check if already seen using string match
-          if [[ ! "$seen_skills" =~ (^|:)"$skill_name"(:|$) ]]; then
+          # Check if already seen (exact match with : delimiters)
+          if [[ ":$seen_skills:" != *":$skill_name:"* ]]; then
             SKILLS+=("$skill_name")
             SKILL_PATHS+=("$skill_name:$rpath/$skill_name")
             seen_skills="$seen_skills:$skill_name:"
+            verbose_log "found skill '$skill_name' in repo '$rpath'"
           fi
         done < <(list_skills "$rpath")
       done
@@ -404,6 +416,8 @@ fi
 if [[ "${#SKILLS[@]}" -eq 0 ]]; then
   fail "No skills specified. Provide skill names or use --all" "$EXIT_USAGE"
 fi
+
+verbose_log "collected ${#SKILLS[@]} skill(s): ${SKILLS[*]}"
 
 total_failed=0
 total_conflicts=0

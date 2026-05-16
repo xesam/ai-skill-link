@@ -20,7 +20,7 @@ Usage:
   skill-link.ps1 <skill_name...> --cli <name> [options]
   skill-link.ps1 --all --cli <name> [options]
 
-Link selected skills from this repository into a known AI CLI skills directory.
+Bridge skills from configured repositories into AI CLI tools via symlinks — no central store, no copies.
 
 Required:
   -c, --cli <name>        Target AI CLI name (use "all" to target every supported CLI)
@@ -51,6 +51,13 @@ function Write-Fail {
     param([string]$Message, [int]$ExitCode)
     Write-Host "[ERR] $Message" -ForegroundColor Red
     exit $ExitCode
+}
+
+function Write-VerboseLog {
+    param([string]$Message)
+    if ($VERBOSE) {
+        Write-Host "[VERBOSE] $Message" -ForegroundColor Gray
+    }
 }
 
 # Parse [clis] section from a config file, return ordered hashtable of name->path.
@@ -296,6 +303,7 @@ if ($REPO_ARG) {
 }
 
 $REPO_ROOT = Resolve-Path $REPO_ROOT | Select-Object -ExpandProperty Path
+Write-VerboseLog "repo root resolved to: $REPO_ROOT"
 
 if ($DO_LIST) {
     Get-Skills -Repo $REPO_ROOT
@@ -327,6 +335,8 @@ if ($CLI_NAME.ToLower() -eq "all") {
     $CLI_NAMES = @($CLI_NAME)
 }
 
+Write-VerboseLog "target CLI(s): $($CLI_NAMES -join ', ')"
+
 if ($USE_ALL) {
     $SKILLS = Get-Skills -Repo $REPO_ROOT
 }
@@ -334,6 +344,8 @@ if ($USE_ALL) {
 if ($SKILLS.Length -eq 0) {
     Write-Fail "No skills specified. Provide skill names or use --all" $EXIT_USAGE
 }
+
+Write-VerboseLog "collected $($SKILLS.Length) skill(s): $($SKILLS -join ', ')"
 
 $total_failed = 0
 $total_conflicts = 0

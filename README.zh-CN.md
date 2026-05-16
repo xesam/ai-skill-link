@@ -2,47 +2,89 @@
 
 [English](README.md) | 中文
 
-一个跨平台的 AI CLI skills 管理工具，通过软链接方式管理技能。
+一个跨平台的 AI CLI skills 桥接工具——通过软链接,把你的 skills 从各自的"老家"直接桥接到各个 AI 工具。
 
 ## 这是什么？
 
-**AI Skill Link 是一个独立的工具**，而不是 skills 仓库本身。它帮助你：
+AI 编程工具的 skills 天生是分散的:个人的 skill 仓库、项目自带的 skills 目录、开源工具的 skills、团队共享的 skill 集合……它们散落在不同仓库、不同目录、不同机器上。
 
-1. 在**独立的仓库**中维护你的 skills（例如 `~/my-skills`）
-2. 从 AI CLI 工具创建指向 skills 仓库的软链接
-3. 管理多个 skills 仓库（个人、工作、开源）
+**AI Skill Link 不要求你把它们拷贝到一个中央存储。** 它直接从 skills 原所在位置创建软链接到各个 AI CLI 工具的 skills 目录。Skills 留在原处不动,修改实时生效,零冗余。
 
-**典型配置：**
+```mermaid
+graph LR
+    subgraph S["分散的 skill 来源"]
+        A["~/my-skills<br/>个人 skill 仓库"]
+        B["~/work/project-x/skills<br/>项目自带 skill"]
+        C["~/oss/some-tool<br/>开源 skill"]
+    end
+
+    LINK["skill-link<br/>配置驱动<br/>零复制<br/>实时生效"]
+
+    subgraph T["AI CLI 工具"]
+        D["Claude Code"]
+        E["Cursor"]
+        F["Codex"]
+        G["Gemini CLI"]
+        H["Windsurf"]
+        I["Qwen Code"]
+    end
+
+    A -->|软链接| LINK
+    B -->|软链接| LINK
+    C -->|软链接| LINK
+    LINK -->|软链接| D
+    LINK -->|软链接| E
+    LINK -->|软链接| F
+    LINK -->|软链接| G
+    LINK -->|软链接| H
+    LINK -->|软链接| I
+```
+
+**工作方式:**
+
+1. 在配置文件中声明你的 skills 散落在哪些目录
+2. skill-link 扫描这些目录,找到所有包含 `SKILL.md` 的 skill 目录
+3. 在每个 AI CLI 工具的 skills 目录下创建软链接,指向原始位置
+
+没有中央存储,没有拷贝。Skills 留在它们自然存在的地方——git 仓库、项目目录、共享盘——所有 AI CLI 工具通过软链接读取同一份源文件。
+
+**典型配置:**
 
 ```
-~/ai-skill-link/          # 本工具（克隆一次）
+~/ai-skill-link/          # 本工具(克隆一次)
   ├── skill-link          # 链接脚本
   ├── skill-link.conf     # 默认配置
   └── ...
 
-~/my-skills/              # 你的实际 skills 仓库
+~/my-skills/              # 你的个人 skills
   ├── skill-1/
   │   └── SKILL.md
-  ├── skill-2/
-  │   └── SKILL.md
-  └── ...
+  └── skill-2/
+      └── SKILL.md
 
-~/.claude/skills/         # AI CLI skills 目录（由工具管理）
-  ├── skill-1 -> ~/my-skills/skill-1  # 软链接
-  └── skill-2 -> ~/my-skills/skill-2  # 软链接
+~/work/project-x/skills/  # 项目自带的 skills
+  └── ci-deploy/
+      └── SKILL.md
+
+~/.claude/skills/         # AI CLI skills 目录(由工具管理)
+  ├── skill-1 -> ~/my-skills/skill-1        # 软链接到个人仓库
+  ├── skill-2 -> ~/my-skills/skill-2        # 软链接到个人仓库
+  └── ci-deploy -> ~/work/project-x/skills/ci-deploy  # 软链接到项目
 ```
 
 ## 项目目标
 
-许多 AI CLI 工具都有自己的 skills 配置系统，为了避免在每个项目中重复拷贝相同的 skill 文件，本工具通过创建软链接的方式，将 AI CLI 工具连接到你的集中式 skills 仓库。
+AI CLI 工具各有各的 skills 配置系统。Skills 散落在个人仓库、项目目录、团队集合、开源分发中。来回拷贝会产生内容漂移和冗余。
 
-**主要优势：**
+AI Skill Link 用桥接取代拷贝——配置驱动、零冗余、实时同步。
 
-- **集中管理**：所有 skills 集中在一个仓库中，便于维护和更新
-- **避免重复**：不需要在每个 AI CLI 项目中都拷贝相同的 skill 文件
-- **版本一致**：确保所有 AI CLI 使用的是相同版本的 skill
-- **节省空间**：通过软链接引用，避免多个项目重复存储相同的文件
-- **多仓库支持**：组织来自不同来源的 skills（个人、团队、开源）
+**核心优势:**
+
+- **Skills 留在原处**: 不需要中央存储,指到多个仓库和目录,统一桥接到你的 AI 工具
+- **改动即时生效**: 在原仓库修改 skill,所有 AI CLI 立刻看到变化(因为是软链接)
+- **零冗余**: 每个 skill 只有一份本体,通过软链接出现在所有需要它的地方
+- **多仓库聚合**: 把个人、工作、开源、项目仓库的 skills 汇聚到一个统一视图
+- **节省空间**: 软链接避免在多个 AI CLI 目录中重复存储相同文件
 
 ## 项目结构
 

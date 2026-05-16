@@ -2,15 +2,51 @@
 
 [中文文档](README.zh-CN.md)
 
-A cross-platform tool for managing AI CLI skills via symbolic links.
+A cross-platform tool that bridges AI CLI tools to your skills — wherever they live — via symbolic links.
 
 ## What is This?
 
-**AI Skill Link is a standalone tool**, not a skills repository itself. It helps you:
+Skills for AI coding tools are inherently scattered: your personal skill repo, a project's built-in skills directory, an open-source tool's bundled skills, your team's shared skill collection. They live in different repos, different directories, different machines.
 
-1. Maintain your skills in a **separate repository** (e.g., `~/my-skills`)
-2. Create symbolic links from AI CLI tools to your skills repository
-3. Manage multiple skills repositories (personal, work, open-source)
+**AI Skill Link doesn't ask you to copy them into a central store.** Instead, it creates symbolic links directly from wherever your skills live into each AI CLI tool's skills directory. Skills stay put. Changes propagate instantly. No duplication.
+
+```mermaid
+graph LR
+    subgraph S["scattered skill sources"]
+        A["~/my-skills<br/>personal skills"]
+        B["~/work/project-x/skills<br/>project skills"]
+        C["~/oss/some-tool<br/>open-source skills"]
+    end
+
+    LINK["skill-link<br/>config-driven<br/>zero-copy<br/>live synced"]
+
+    subgraph T["AI CLI tools"]
+        D["Claude Code"]
+        E["Cursor"]
+        F["Codex"]
+        G["Gemini CLI"]
+        H["Windsurf"]
+        I["Qwen Code"]
+    end
+
+    A -->|symlink| LINK
+    B -->|symlink| LINK
+    C -->|symlink| LINK
+    LINK -->|symlink| D
+    LINK -->|symlink| E
+    LINK -->|symlink| F
+    LINK -->|symlink| G
+    LINK -->|symlink| H
+    LINK -->|symlink| I
+```
+
+**How it works:**
+
+1. You define where your skills live — put paths in a config file
+2. skill-link scans those directories for skill folders (any dir with `SKILL.md`)
+3. It creates symlinks from each AI CLI tool's skills directory back to the originals
+
+No central store. No copies. Skills stay in their natural homes — git repos, project folders, shared drives — and every AI CLI tool reads from the same source via symlinks.
 
 **Typical Setup:**
 
@@ -20,29 +56,35 @@ A cross-platform tool for managing AI CLI skills via symbolic links.
   ├── skill-link.conf     # Default configuration
   └── ...
 
-~/my-skills/              # Your actual skills repository
+~/my-skills/              # Your personal skills
   ├── skill-1/
   │   └── SKILL.md
-  ├── skill-2/
-  │   └── SKILL.md
-  └── ...
+  └── skill-2/
+      └── SKILL.md
+
+~/work/project-x/skills/  # A project's built-in skills
+  └── ci-deploy/
+      └── SKILL.md
 
 ~/.claude/skills/         # AI CLI skills directory (managed by tool)
-  ├── skill-1 -> ~/my-skills/skill-1  # Symlink
-  └── skill-2 -> ~/my-skills/skill-2  # Symlink
+  ├── skill-1 -> ~/my-skills/skill-1        # Symlink to personal repo
+  ├── skill-2 -> ~/my-skills/skill-2        # Symlink to personal repo
+  └── ci-deploy -> ~/work/project-x/skills/ci-deploy  # Symlink to project
 ```
 
 ## Project Goals
 
-Many AI CLI tools have their own skills configuration systems. To avoid repeatedly copying the same skill files across projects, this tool creates symbolic links from AI CLI tools to your centralized skills repository.
+AI CLI tools each have their own skills configuration system. Skills are scattered across personal repos, project directories, team collections, and open-source distributions. Copying them around creates drift and duplication.
+
+AI Skill Link replaces copying with bridging. Config-driven, zero-copy, live-synced.
 
 **Key Benefits:**
 
-- **Centralized Management**: All skills in one repository for easy maintenance and updates
-- **Avoid Duplication**: No need to copy the same skill files across AI CLI projects
-- **Version Consistency**: Ensures all AI CLIs use the same version of skills
-- **Space Saving**: Symbolic links avoid duplicate storage across projects
-- **Multi-Repository Support**: Organize skills from different sources (personal, team, open-source)
+- **Skills Stay Distributed**: No central store required — point at multiple repos and directories, they all bridge into your tools
+- **Instantly Live**: Edit a skill in its original repo, every AI CLI sees the change immediately (it's a symlink)
+- **Zero Duplication**: One canonical copy per skill, symlinked everywhere it's needed
+- **Multi-Repository Aggregation**: Gather skills from personal, work, open-source, and project repos into one unified view
+- **Space Efficient**: Symlinks avoid duplicate files across AI CLI directories
 
 ## Project Structure
 
