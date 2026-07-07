@@ -1,0 +1,8 @@
+.DS_Store
+\.*
+!.gitignore
+node_modules/
+dist/
+*.tsbuildinfo
+config.local.conf
+*.tgz

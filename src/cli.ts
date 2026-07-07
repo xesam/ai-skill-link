@@ -1,0 +1,363 @@
+import { statSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { Command } from 'commander';
+import {
+  VERSION,
+  EXIT_USAGE,
+  EXIT_SKILL_NOT_FOUND,
+  EXIT_TARGET_CONFLICT,
+  EXIT_LINK_FAILED,
+} from './constants.js';
+import {
+  getCLIs,
+  cliTargetDir,
+  allCliNames,
+  defaultSource,
+  resolveSource,
+} from './config.js';
+import { listSkills, findSkillPath, sourceEntries, collectAllSkills, isSkillDir } from './scanner.js';
+import {
+  createSymlink,
+  removeSymlink,
+  ensureDir,
+  applyProjectPath,
+  LinkResult,
+} from './linker.js';
+import { doctor } from './doctor.js';
+
+export function createProgram(): Command {
+  const program = new Command();
+
+  program
+    .name('skill-link')
+    .description(
+      'Bridge skills from configured sources into AI CLI tools via symlinks — no central store, no copies.',
+    )
+    .version(VERSION)
+    .usage('<skill_name...> --cli <name> [options]')
+    .option('-c, --cli <name>', 'Target AI CLI name (use "all" to target every supported CLI)')
+    .option('-a, --all', 'Link all available skills')
+    .option('-f, --force', 'Replace existing destination entry')
+    .option('-n, --dry-run', 'Show planned actions without modifying files')
+    .option('-s, --source <dir>', 'Skills source directory (name or path)')
+    .option('-u, --unlink', 'Remove symlinks instead of creating them')
+    .option('-l, --list', 'List available skills and exit')
+    .option('--list-clis', 'List supported CLI names and target paths')
+    .option('--relative', 'Create relative symlinks instead of absolute symlinks')
+    .option('-p, --project <dir>', 'Target project-level skills dir instead of global')
+    .option('-D, --doctor', 'Run health checks')
+    .option('-v, --verbose', 'Print extra logs')
+    .addHelpText(
+      'after',
+      `
+Arguments:
+  <skill_name...>       One or more skill names (directory names)
+
+Exit codes:
+  0  All OK
+  1  Usage error (e.g. missing --cli)
+  2  Skill not found or invalid SKILL.md
+  3  Target conflict (exists and no --force)
+  4  Other link failure
+`,
+    );
+
+  return program;
+}
+
+function fail(msg: string, code: number): never {
+  process.stderr.write(`[ERR] ${msg}\n`);
+  process.exit(code);
+}
+
+function verbose(opts: any, msg: string): void {
+  if (opts.verbose) process.stderr.write(`[VERBOSE] ${msg}\n`);
+}
+
+interface SkillPair {
+  name: string;
+  path: string;
+}
+
+interface Counters {
+  success: number;
+  skipped: number;
+  failed: number;
+  conflicts: number;
+  missing: number;
+}
+
+function handleResult(result: LinkResult, counters: Counters, isUnlink: boolean): void {
+  switch (result.status) {
+    case 'ok':
+      process.stdout.write(`${result.message}\n`);
+      counters.success++;
+      break;
+    case 'skip':
+      process.stdout.write(`${result.message}\n`);
+      counters.skipped++;
+      break;
+    case 'conflict':
+      process.stderr.write(`${result.message}\n`);
+      counters.failed++;
+      counters.conflicts++;
+      break;
+    case 'error':
+      process.stderr.write(`${result.message}\n`);
+      counters.failed++;
+      if (!isUnlink) counters.missing++;
+      break;
+  }
+}
+
+/** Handle --list and --list-clis modes. Returns 0 on success. */
+function runList(opts: any): number {
+  if (opts.list) {
+    if (opts.source) {
+      const skills = listSkills(resolveSource(opts.source));
+      for (const s of skills) process.stdout.write(`${s}\n`);
+    } else {
+      const sources = sourceEntries();
+      if (sources.length === 0) {
+        const def = defaultSource();
+        if (def) {
+          for (const s of listSkills(def)) process.stdout.write(`${s}\n`);
+        }
+      } else {
+        const showHeader = sources.length > 1;
+        for (const src of sources) {
+          if (showHeader) process.stdout.write(`[${src.name}]\n`);
+          for (const s of listSkills(src.path)) process.stdout.write(`${s}\n`);
+        }
+      }
+    }
+    return 0;
+  }
+
+  if (opts.listClis) {
+    const clis = getCLIs();
+    for (const [name, dir] of Object.entries(clis).sort((a, b) => a[0].localeCompare(b[0]))) {
+      process.stdout.write(`${name.padEnd(12)} -> ${dir}\n`);
+    }
+    return 0;
+  }
+
+  return -1; // not a list mode
+}
+
+/** Resolve the source root directory from CLI options. Returns resolved absolute path. */
+function resolveSourceRoot(opts: any): string {
+  let root: string;
+  if (opts.source) {
+    root = resolveSource(opts.source);
+  } else {
+    const def = defaultSource();
+    if (def) {
+      root = def;
+    } else {
+      fail(
+        'No default source configured. Set [source] default in ~/.config/ai-skill-link/config.conf',
+        EXIT_USAGE,
+      );
+    }
+  }
+
+  try {
+    if (!statSync(root).isDirectory()) {
+      fail(`Source directory does not exist: ${root}`, EXIT_USAGE);
+    }
+  } catch {
+    fail(`Source directory does not exist: ${root}`, EXIT_USAGE);
+  }
+
+  root = resolve(root);
+  verbose(opts, `source root resolved to: ${root}`);
+  return root;
+}
+
+/** Collect skill pairs from positional args or --all across all sources. */
+function collectSkills(
+  opts: any,
+  positionalSkills: string[],
+  sourceRoot: string,
+): { skillPairs: SkillPair[]; totalMissing: number } {
+  const skillPairs: SkillPair[] = [];
+  let totalMissing = 0;
+
+  if (opts.all) {
+    if (opts.source) {
+      for (const name of listSkills(sourceRoot)) {
+        skillPairs.push({ name, path: join(sourceRoot, name) });
+        verbose(opts, `found skill '${name}' in source '${sourceRoot}'`);
+      }
+    } else {
+      const skillMap = collectAllSkills(sourceEntries());
+      for (const [name, path] of Object.entries(skillMap)) {
+        skillPairs.push({ name, path });
+        verbose(opts, `found skill '${name}' at '${path}'`);
+      }
+    }
+  } else {
+    for (const skill of positionalSkills) {
+      if (!opts.source) {
+        const found = findSkillPath(skill);
+        if (found) {
+          skillPairs.push({ name: skill, path: found });
+        } else {
+          const fallback = join(sourceRoot, skill);
+          if (isSkillDir(fallback)) {
+            skillPairs.push({ name: skill, path: fallback });
+          } else {
+            process.stderr.write(`[ERR] skill not found or invalid: ${skill}\n`);
+            totalMissing++;
+          }
+        }
+      } else {
+        const path = join(sourceRoot, skill);
+        if (!opts.unlink && !isSkillDir(path)) {
+          process.stderr.write(`[ERR] skill not found or invalid: ${skill}\n`);
+          totalMissing++;
+        } else {
+          skillPairs.push({ name: skill, path });
+        }
+      }
+    }
+  }
+
+  return { skillPairs, totalMissing };
+}
+
+export async function main(args: string[]): Promise<number> {
+  // Backward compat: treat --repo as --source
+  const argv = args.map((a, i) => {
+    if (a === '--repo' || a === '-r') return '--source';
+    return a;
+  });
+
+  const program = createProgram();
+  program.parse(argv, { from: 'user' });
+  const opts = program.opts();
+  const positionalSkills: string[] = program.args;
+
+  if (opts.doctor) {
+    try {
+      const issueCount = doctor(opts.cli, opts.project, opts.verbose);
+      return Math.min(issueCount, 255);
+    } catch (err: any) {
+      fail(err.message, EXIT_USAGE);
+    }
+  }
+
+  const listResult = runList(opts);
+  if (listResult >= 0) return listResult;
+
+  if (opts.all && positionalSkills.length > 0) {
+    fail('--all cannot be used with explicit skill names', EXIT_USAGE);
+  }
+
+  if (!opts.cli) {
+    fail('--cli is required', EXIT_USAGE);
+  }
+
+  let cliNames: string[];
+  if (opts.cli === 'all') {
+    cliNames = allCliNames();
+  } else {
+    if (!cliTargetDir(opts.cli)) {
+      fail(`Unsupported CLI: ${opts.cli} (use --list-clis)`, EXIT_USAGE);
+    }
+    cliNames = [opts.cli];
+  }
+  verbose(opts, `target CLI(s): ${cliNames.join(' ')}`);
+
+  const sourceRoot = resolveSourceRoot(opts);
+
+  let projectRoot = '';
+  if (opts.project) {
+    try {
+      projectRoot = resolve(opts.project);
+      verbose(opts, `project root resolved to: ${projectRoot}`);
+    } catch {
+      fail(`Project directory does not exist: ${opts.project}`, EXIT_USAGE);
+    }
+  }
+
+  const { skillPairs, totalMissing } = collectSkills(opts, positionalSkills, sourceRoot);
+
+  if (skillPairs.length === 0 && totalMissing === 0) {
+    fail('No skills specified. Provide skill names or use --all', EXIT_USAGE);
+  }
+
+  if (totalMissing > 0 && skillPairs.length === 0) {
+    return EXIT_SKILL_NOT_FOUND;
+  }
+
+  verbose(
+    opts,
+    `collected ${skillPairs.length} skill(s): ${skillPairs.map((s) => s.name).join(' ')}`,
+  );
+
+  let totalFailed = 0;
+  let totalConflicts = 0;
+
+  for (const cliName of cliNames) {
+    let targetDir = cliTargetDir(cliName);
+    if (!targetDir) continue;
+
+    if (projectRoot) {
+      targetDir = applyProjectPath(cliName, targetDir, projectRoot);
+    }
+
+    if (cliNames.length > 1) {
+      process.stdout.write(`\n==> ${cliName} (${targetDir})\n`);
+    }
+
+    if (opts.dryRun) {
+      process.stdout.write(`[DRY-RUN] ensure target dir: ${targetDir}\n`);
+    } else {
+      ensureDir(targetDir);
+    }
+
+    const counters: Counters = { success: 0, skipped: 0, failed: 0, conflicts: 0, missing: 0 };
+
+    for (const skill of skillPairs) {
+      const src = skill.path;
+      const dst = join(targetDir, skill.name);
+
+      if (opts.unlink) {
+        handleResult(
+          removeSymlink(dst, src, { force: !!opts.force, dryRun: !!opts.dryRun }),
+          counters,
+          true,
+        );
+      } else {
+        handleResult(
+          createSymlink(src, dst, {
+            force: !!opts.force,
+            dryRun: !!opts.dryRun,
+            useRelative: !!opts.relative,
+          }),
+          counters,
+          false,
+        );
+      }
+    }
+
+    process.stdout.write(
+      `Summary: success=${counters.success} skipped=${counters.skipped} failed=${counters.failed}\n`,
+    );
+
+    totalFailed += counters.failed;
+    totalConflicts += counters.conflicts;
+  }
+
+  totalFailed += totalMissing;
+
+  if (totalFailed > 0) {
+    if (totalConflicts > 0) return EXIT_TARGET_CONFLICT;
+    if (totalMissing > 0) return EXIT_SKILL_NOT_FOUND;
+    return EXIT_LINK_FAILED;
+  }
+
+  return 0;
+}

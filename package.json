@@ -1,0 +1,51 @@
+{
+  "name": "ai-skill-link",
+  "version": "1.0.0",
+  "description": "Bridge skills from configured sources into AI CLI tools via symlinks — no central store, no copies.",
+  "license": "MIT",
+  "author": "xiaopingyuan",
+  "type": "module",
+  "bin": {
+    "skill-link": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "config.conf"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --clean --out-dir dist",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "ini": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ini": "^4.1.1",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "skills",
+    "symlink",
+    "claude-code",
+    "cursor",
+    "codex",
+    "gemini",
+    "cli-tools"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xiaopingyuan/ai-skill-link.git"
+  }
+}
