@@ -1,9 +1,9 @@
 {
   "name": "ai-skill-link",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Bridge skills from configured sources into AI CLI tools via symlinks — no central store, no copies.",
   "license": "MIT",
-  "author": "xiaopingyuan",
+  "author": "xesam",
   "type": "module",
   "bin": {
     "skill-link": "./dist/index.js"
@@ -46,6 +46,6 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xiaopingyuan/ai-skill-link.git"
+    "url": "git+https://github.com/xesam/ai-skill-link.git"
   }
 }
