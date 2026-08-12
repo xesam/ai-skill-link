@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.0.2';
 
 export const EXIT_USAGE = 1;
 export const EXIT_SKILL_NOT_FOUND = 2;

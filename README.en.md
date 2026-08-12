@@ -96,17 +96,28 @@ Requires Node.js >= 18.
 
 ### 3.2 Initial Setup
 
-1. **Create your user config:**
+1. **Register your source directories:**
+
+   The easiest way — register your skills directories into the user config with a command, no hand-editing:
 
    ```bash
-   mkdir -p ~/.config/ai-skill-link
-   cat > ~/.config/ai-skill-link/config.conf <<'EOF'
-   [source]
-   default = ~/my-skills
-   EOF
+   # Register one or more scattered skills dirs (written to ~/.config/ai-skill-link/config.conf)
+   skill-link --add-source ~/my-skills ~/work/project-x/skills ~/oss/awesome-tools/skills
+
+   # Show configured sources
+   skill-link --list-sources
    ```
 
-   The user config follows the same INI format as the built-in config. Entries here override built-in defaults. This file lives outside the package directory, so `npm update` never touches it.
+   `--add-source` auto-names each directory: when the leaf is `skills` it uses the parent name (`.../project-x/skills` → `project-x`), otherwise the leaf name (`~/my-skills` → `my-skills`). Name conflicts get a suffix, duplicate paths are skipped, and missing directories error out.
+
+   `--dry-run` preview and `--remove-source <name...>` are also supported:
+
+   ```bash
+   skill-link --add-source ~/more-skills --dry-run   # preview, no file changes
+   skill-link --remove-source project-x              # remove by name
+   ```
+
+   > Prefer hand-editing? The user config lives at `~/.config/ai-skill-link/config.conf`, INI format, overriding built-in defaults; it sits outside the package directory so `npm update` never touches it.
 
 2. **Link your skills:**
 
@@ -150,16 +161,31 @@ skill-link --all --cli claude-code --project .
 You maintain a personal skill repo at `~/my-skills` and want all AI CLI tools to use it. Configure once, link everywhere:
 
 ```bash
-# 1. Set the default source
-mkdir -p ~/.config/ai-skill-link
-echo '[source]
-default = ~/my-skills' > ~/.config/ai-skill-link/config.conf
+# 1. Register the source dir (written to ~/.config/ai-skill-link/config.conf)
+skill-link --add-source ~/my-skills
 
 # 2. Link all skills to every configured tool
 skill-link --all --cli all
 ```
 
 After adding or editing a skill, re-run `skill-link --all --cli all` — all tools pick up changes instantly.
+
+**Scenario 1.5: Aggregating Scattered Skills Dirs into the Default Lookup**
+
+Your skills are spread across multiple repos / projects / open-source dirs. You don't want to copy them into one place, and you don't want to pass `--source` every time. Register them all as sources in one command — `--all` aggregates across every source:
+
+```bash
+# Register multiple scattered dirs at once
+skill-link --add-source ~/my-skills ~/work/project-x/skills ~/oss/awesome-tools/skills
+
+# Show registered sources
+skill-link --list-sources
+
+# Link every skill from every source to all tools
+skill-link --all --cli all
+```
+
+Add new sources anytime; remove one with `skill-link --remove-source <name>` when no longer needed.
 
 **Scenario 2: Self-Contained Project Skills**
 
@@ -272,6 +298,12 @@ skill-link --doctor --project ~/work/my-app
 
 # Unlink from project
 skill-link skill-link-example --cli claude-code --project ~/work/my-app --unlink
+
+# Manage sources: register scattered skills directories
+skill-link --add-source ~/my-skills ~/work/project-x/skills
+skill-link --list-sources
+skill-link --remove-source project-x
+skill-link --add-source ~/more-skills --dry-run
 ```
 
 ### 3.6 Multi-Source Behavior
@@ -357,6 +389,9 @@ skill-link --all --cli claude-code --project . --unlink
 | `--doctor` | `-D` | Run health checks (broken symlinks, duplicates, missing SKILL.md) |
 | `--list` | `-l` | List available skills in source |
 | `--list-clis` | | List configured CLI tools and their directories |
+| `--add-source <path...>` | | Register one or more skills dirs as named sources (writes user config; no `--cli` needed) |
+| `--remove-source <name...>` | | Remove sources by name (no `--cli` needed) |
+| `--list-sources` | | List configured sources and their dirs (no `--cli` needed) |
 | `--verbose` | `-v` | Print extra logs (with `--doctor`: also report unlinked skills) |
 | `--help` | `-h` | Show help information |
 

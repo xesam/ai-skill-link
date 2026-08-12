@@ -96,17 +96,28 @@ npm install -g ai-skill-link
 
 ### 3.2 初始设置
 
-1. **创建用户配置：**
+1. **注册来源目录：**
+
+   最简单的方式——用命令把你的 skills 目录注册进用户配置，无需手编文件：
 
    ```bash
-   mkdir -p ~/.config/ai-skill-link
-   cat > ~/.config/ai-skill-link/config.conf <<'EOF'
-   [source]
-   default = ~/my-skills
-   EOF
+   # 注册一个或多个分散的 skills 目录（路径会写入 ~/.config/ai-skill-link/config.conf）
+   skill-link --add-source ~/my-skills ~/work/project-x/skills ~/oss/awesome-tools/skills
+
+   # 查看已配置的来源
+   skill-link --list-sources
    ```
 
-   用户配置与内置配置使用相同的 INI 格式。此处的条目会覆盖内置默认值。该文件位于 npm 包目录之外，`npm update` 永远不会触及。
+   `--add-source` 会为每个目录自动起名：叶子目录叫 `skills` 时取父目录名（`.../project-x/skills` → `project-x`），否则取叶子名（`~/my-skills` → `my-skills`）。重名自动加后缀，路径重复会跳过，目录不存在会报错。
+
+   也支持 `--dry-run` 预览、`--remove-source <name...>` 移除：
+
+   ```bash
+   skill-link --add-source ~/more-skills --dry-run   # 预览，不写文件
+   skill-link --remove-source project-x              # 按名字移除
+   ```
+
+   > 如果更习惯手编：用户配置位于 `~/.config/ai-skill-link/config.conf`，INI 格式，条目覆盖内置默认值；该文件在 npm 包目录之外，`npm update` 永远不会触及。
 
 2. **链接你的 skills：**
 
@@ -150,16 +161,31 @@ skill-link --all --cli claude-code --project .
 你维护了一个个人 skills 仓库 `~/my-skills`，希望所有 AI CLI 工具都能使用。一次配置，全局生效：
 
 ```bash
-# 1. 设置默认来源
-mkdir -p ~/.config/ai-skill-link
-echo '[source]
-default = ~/my-skills' > ~/.config/ai-skill-link/config.conf
+# 1. 注册来源目录（写入 ~/.config/ai-skill-link/config.conf）
+skill-link --add-source ~/my-skills
 
 # 2. 一次性链接所有 skills 到所有工具
 skill-link --all --cli all
 ```
 
 之后新增或修改 skill，只需重新执行 `skill-link --all --cli all`，所有工具立即生效。
+
+**场景 1.5：把分散的多个 skills 目录聚合到默认查找范围**
+
+你的 skills 散落在多个仓库 / 项目 / 开源目录，不想拷到一处，也不想每次都指定 `--source`。一条命令把它们都注册成来源，`--all` 会聚合扫描全部来源：
+
+```bash
+# 一次性注册多个分散目录
+skill-link --add-source ~/my-skills ~/work/project-x/skills ~/oss/awesome-tools/skills
+
+# 查看已注册来源
+skill-link --list-sources
+
+# 链接所有来源的全部 skill 到所有工具
+skill-link --all --cli all
+```
+
+新增来源随时追加；不再需要的可 `skill-link --remove-source <name>` 移除。
 
 **场景二：项目自带 skills 的闭环使用**
 
@@ -272,6 +298,12 @@ skill-link --doctor --project ~/work/my-app
 
 # 从项目中取消链接
 skill-link skill-link-example --cli claude-code --project ~/work/my-app --unlink
+
+# 管理来源：注册分散的 skills 目录
+skill-link --add-source ~/my-skills ~/work/project-x/skills
+skill-link --list-sources
+skill-link --remove-source project-x
+skill-link --add-source ~/more-skills --dry-run
 ```
 
 ### 3.6 多来源行为说明
@@ -357,6 +389,9 @@ skill-link --all --cli claude-code --project . --unlink
 | `--doctor` | `-D` | 运行健康检查（断链、重复 skill、缺失 SKILL.md） |
 | `--list` | `-l` | 列出仓库中的可用 skill |
 | `--list-clis` | | 列出已配置的 CLI 工具及其目录 |
+| `--add-source <path...>` | | 注册一个或多个 skills 目录为命名来源（写入用户配置，无需 `--cli`） |
+| `--remove-source <name...>` | | 按名字移除来源（无需 `--cli`） |
+| `--list-sources` | | 列出已配置的来源及其目录（无需 `--cli`） |
 | `--verbose` | `-v` | 打印额外日志（配合 `--doctor` 时同时报告未链接的 skill） |
 | `--help` | `-h` | 显示帮助信息 |
 

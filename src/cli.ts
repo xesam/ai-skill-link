@@ -24,6 +24,7 @@ import {
   LinkResult,
 } from './linker.js';
 import { doctor } from './doctor.js';
+import { addSources, removeSources, listSources } from './source-manager.js';
 
 export function createProgram(): Command {
   const program = new Command();
@@ -46,6 +47,9 @@ export function createProgram(): Command {
     .option('--relative', 'Create relative symlinks instead of absolute symlinks')
     .option('-p, --project <dir>', 'Target project-level skills dir instead of global')
     .option('-D, --doctor', 'Run health checks')
+    .option('--add-source <paths...>', 'Register skills directories as named sources in the user config')
+    .option('--remove-source <names...>', 'Remove named sources from the user config')
+    .option('--list-sources', 'List configured sources and exit')
     .option('-v, --verbose', 'Print extra logs')
     .addHelpText(
       'after',
@@ -143,6 +147,56 @@ function runList(opts: any): number {
   }
 
   return -1; // not a list mode
+}
+
+/** Handle --add-source / --remove-source / --list-sources modes. Returns >=0 on handling, -1 otherwise. */
+function runSourceManagement(opts: any): number {
+  if (opts.listSources) {
+    const sources = listSources();
+    if (sources.length === 0) {
+      process.stdout.write('No sources configured. Use --add-source <path...> to register one.\n');
+    } else {
+      for (const s of sources) {
+        process.stdout.write(`${s.name.padEnd(16)} -> ${s.path}\n`);
+      }
+    }
+    return 0;
+  }
+
+  if (opts.addSource && opts.addSource.length > 0) {
+    const dryRun = !!opts.dryRun;
+    const res = addSources(opts.addSource, { dryRun });
+
+    for (const a of res.added) {
+      process.stdout.write(`${dryRun ? '[DRY-RUN] ' : ''}added source: ${a.name} -> ${a.path}\n`);
+    }
+    for (const s of res.skipped) {
+      process.stdout.write(`[SKIP] ${s.path} (${s.reason})\n`);
+    }
+    for (const e of res.errors) {
+      process.stderr.write(`[ERR] ${e.path}: ${e.reason}\n`);
+    }
+
+    if (res.errors.length > 0) return EXIT_USAGE;
+    return 0;
+  }
+
+  if (opts.removeSource && opts.removeSource.length > 0) {
+    const dryRun = !!opts.dryRun;
+    const res = removeSources(opts.removeSource, { dryRun });
+
+    for (const n of res.removed) {
+      process.stdout.write(`${dryRun ? '[DRY-RUN] ' : ''}removed source: ${n}\n`);
+    }
+    for (const s of res.skipped) {
+      process.stdout.write(`[SKIP] ${s.name} (${s.reason})\n`);
+    }
+
+    if (res.removed.length === 0 && res.skipped.length > 0) return EXIT_USAGE;
+    return 0;
+  }
+
+  return -1; // not a management action
 }
 
 /** Resolve the source root directory from CLI options. Returns resolved absolute path. */
@@ -250,6 +304,10 @@ export async function main(args: string[]): Promise<number> {
 
   const listResult = runList(opts);
   if (listResult >= 0) return listResult;
+
+  // Source management actions: take over and exit, no --cli required.
+  const mgmtResult = runSourceManagement(opts);
+  if (mgmtResult >= 0) return mgmtResult;
 
   if (opts.all && positionalSkills.length > 0) {
     fail('--all cannot be used with explicit skill names', EXIT_USAGE);
