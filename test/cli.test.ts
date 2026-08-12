@@ -59,4 +59,31 @@ describe('cli integration', () => {
     const result = await main(['--doctor', '--cli', 'test-cli', '--verbose']);
     expect(result).toBe(0);
   });
+
+  it('--add-source registers a source and --list-sources shows it', async () => {
+    const newSrc = join(testBase, 'extra-skills');
+    mkdirSync(newSrc, { recursive: true });
+
+    const add = await main(['--add-source', newSrc]);
+    expect(add).toBe(0);
+    clearConfigCache();
+
+    const list = await main(['--list-sources']);
+    expect(list).toBe(0);
+  });
+
+  it('--add-source errors on missing directory', async () => {
+    const result = await main(['--add-source', join(testBase, 'no-such')]);
+    expect(result).toBe(1); // EXIT_USAGE
+  });
+
+  it('--remove-source removes a previously added source', async () => {
+    const newSrc = join(testBase, 'extra-skills');
+    mkdirSync(newSrc, { recursive: true });
+
+    await main(['--add-source', newSrc]);
+    clearConfigCache();
+    const result = await main(['--remove-source', 'extra-skills']);
+    expect(result).toBe(0);
+  });
 });
