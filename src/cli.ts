@@ -10,6 +10,7 @@ import {
 } from './constants.js';
 import {
   getCLIs,
+  getSources,
   cliTargetDir,
   allCliNames,
   defaultSource,
@@ -199,21 +200,34 @@ function runSourceManagement(opts: any): number {
   return -1; // not a management action
 }
 
-/** Resolve the source root directory from CLI options. Returns resolved absolute path. */
+/**
+ * Resolve the source root directory from CLI options. Returns resolved absolute path.
+ *
+ * A `default` source is no longer required when other named sources are
+ * configured: in that case we return an empty root and let `collectSkills`
+ * find skills across all sources via `findSkillPath` / `collectAllSkills`
+ * (multi-source by-name lookup). We only fail when NO source is configured
+ * at all, or when an explicit `--source` / `default` points at a missing dir.
+ */
 function resolveSourceRoot(opts: any): string {
-  let root: string;
+  let root: string | undefined;
   if (opts.source) {
     root = resolveSource(opts.source);
   } else {
-    const def = defaultSource();
-    if (def) {
-      root = def;
-    } else {
-      fail(
-        'No default source configured. Set [source] default in ~/.config/ai-skill-link/config.conf',
-        EXIT_USAGE,
-      );
+    root = defaultSource();
+  }
+
+  if (!root) {
+    // No `--source` and no `default`. Fall back to multi-source aggregation
+    // when named sources exist; only hard-fail when there are none at all.
+    if (Object.keys(getSources()).length > 0) {
+      verbose(opts, 'no default source; using multi-source by-name lookup');
+      return '';
     }
+    fail(
+      'No source configured. Register one with `skill-link --add-source <path>` or set [source] default in ~/.config/ai-skill-link/config.conf',
+      EXIT_USAGE,
+    );
   }
 
   try {

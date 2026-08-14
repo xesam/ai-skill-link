@@ -423,13 +423,14 @@ my-tool = ~/path/to/my-tool/skills
 
 支持多个命名 repo，用于组织不同来源的 skills（个人、团队、开源等）：
 
-- `default`：特殊名称，表示不指定 `--source` 参数时使用的默认来源
-- 其他名称：自定义命名 repo，通过 `--source <name>` 引用
+- `default`：可选。不指定 `--source` 时作为默认来源根目录；未配置时会在所有命名来源中查找 skill
+- 其他名称：自定义命名 repo，通过 `--source <name>` 引用，并聚合用于 `--all` / `--list` / 按名查找
 - 使用示例：
-  - `skill-link --list` → 使用 `default` repo
+  - `skill-link --list` → 列出 `default` 来源（无 `default` 时列出所有命名来源）
   - `skill-link --list --source work` → 使用命名 repo `work`
   - `skill-link --list --source /tmp/test` → 使用临时路径
-- 优先级：命令行 `--source` > 配置 `[source] default`
+  - `skill-link skill-a --cli claude-code` → 在所有命名来源中查找 `skill-a`（无需 `default`）
+- 优先级：命令行 `--source` > 配置 `[source] default` > 多来源按名查找
 
 **[clis] 配置说明：**
 

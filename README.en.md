@@ -423,13 +423,14 @@ my-tool = ~/path/to/my-tool/skills
 
 Supports multiple named sources for organizing skills from different sources (personal, team, open-source, etc.):
 
-- `default`: Special name, used when `--source` parameter is not specified
-- Other names: Custom named sources, referenced via `--source <name>`
+- `default`: Optional. Used as the source root when `--source` is not specified. When omitted, skills are looked up across all named sources.
+- Other names: Custom named sources, referenced via `--source <name>`, and aggregated for `--all` / `--list` / by-name lookup.
 - Usage examples:
-  - `skill-link --list` → uses `default` repo
+  - `skill-link --list` → lists skills from `default` (or all named sources when `default` is absent)
   - `skill-link --list --source work` → uses named source `work`
   - `skill-link --list --source /tmp/test` → uses temporary path
-- Priority: command-line `--source` > config `[source] default`
+  - `skill-link skill-a --cli claude-code` → finds `skill-a` across all named sources (no `default` needed)
+- Priority: command-line `--source` > config `[source] default` > multi-source by-name lookup
 
 **[clis] Configuration:**
 
