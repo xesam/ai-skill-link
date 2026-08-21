@@ -354,6 +354,13 @@ Global:    ~/.claude/skills/<skill>
 Project:   ~/work/my-app/.claude/skills/<skill>
 ```
 
+Most CLI tools use the same path structure for both global and project-level directories — only the prefix differs (`~` → project path). skill-link derives this automatically. A few tools (e.g., pi) use a *different* directory structure at the project level — these are handled via the `[clis-project]` config section (see [Section 3.10](#310-configuration)):
+
+```
+pi global:   ~/.pi/agent/skills/<skill>
+pi project:  ~/work/my-app/.pi/skills/<skill>       ← different structure, overridden by [clis-project]
+```
+
 ```bash
 # Link all skills into current project
 skill-link --all --cli claude-code --project .
@@ -413,6 +420,9 @@ oss     = ~/opensource-skills
 [clis]
 cursor  = ~/.cursor/skills
 my-tool = ~/path/to/my-tool/skills
+
+[clis-project]
+my-tool = .my-tool/skills
 ```
 
 **[source] Configuration:**
@@ -435,6 +445,18 @@ Defines AI CLI tools and their skills directory paths:
 - `~` automatically expands to user home directory
 - Run `skill-link --list-clis` to see current merged list
 - `skill-link --cli all` operates on all configured CLI tools
+
+**[clis-project] Configuration:**
+
+Explicitly declares project-level skills directory paths for CLI tools whose structure differs from the global path when using `--project`:
+
+- Most tools use the same path structure for both global and project-level directories (only the prefix differs: `~` → project path). skill-link derives this automatically — no entry needed here.
+- A few tools (e.g., pi) use a *different* directory structure at the project level and need an explicit entry:
+  - `pi` global path `~/.pi/agent/skills`, project-level path `.pi/skills` — different structure, needs override.
+- Entries are relative paths (no `~` prefix, no home expansion).
+- Unlisted tools fall back to automatic derivation (`~` → project path replacement).
+- Built-in entry: `pi = .pi/skills`.
+- User config entries override built-in ones with the same name.
 
 ### 3.11 Exit Codes
 
