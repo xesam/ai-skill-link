@@ -35,10 +35,26 @@ describe('applyProjectPath', () => {
     expect(result).toBe('/my-project/.claude/skills');
   });
 
-  it('throws for non-home-relative path', () => {
+  it('uses projectDirOverride when provided', () => {
+    const home = homedir();
+    const result = applyProjectPath(
+      'pi',
+      join(home, '.pi/agent/skills'),
+      '/my-project',
+      '.pi/skills',
+    );
+    expect(result).toBe('/my-project/.pi/skills');
+  });
+
+  it('throws for non-home-relative path without override', () => {
     expect(() =>
       applyProjectPath('claude-code', '/usr/local/skills', '/my-project'),
     ).toThrow(/Cannot derive project-level path/);
+  });
+
+  it('uses override even for non-home-relative global path', () => {
+    const result = applyProjectPath('custom', '/usr/local/skills', '/my-project', '.custom/skills');
+    expect(result).toBe('/my-project/.custom/skills');
   });
 });
 

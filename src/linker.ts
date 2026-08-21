@@ -30,7 +30,11 @@ export function applyProjectPath(
   cliName: string,
   targetDir: string,
   projectRoot: string,
+  projectDirOverride?: string,
 ): string {
+  if (projectDirOverride) {
+    return join(projectRoot, projectDirOverride);
+  }
   const home = homedir();
   if (targetDir.startsWith(home + '/') || targetDir === home) {
     return join(projectRoot, targetDir.slice(home.length + 1));

@@ -22,22 +22,18 @@ graph LR
 
     subgraph T["AI CLI tools"]
         D["Claude Code"]
-        E["Cursor"]
         F["Codex"]
-        G["Gemini CLI"]
-        H["Windsurf"]
-        I["Qwen Code"]
+        J["Pi"]
+        K["......"]
     end
 
     A -->|symlink| LINK
     B -->|symlink| LINK
     C -->|symlink| LINK
     LINK -->|symlink| D
-    LINK -->|symlink| E
     LINK -->|symlink| F
-    LINK -->|symlink| G
-    LINK -->|symlink| H
-    LINK -->|symlink| I
+    LINK -->|symlink| J
+    LINK -->|symlink| K
 ```
 
 **How it works:**
@@ -401,7 +397,7 @@ Configuration is layered:
 
 | Source | Location | Description |
 |--------|----------|-------------|
-| Built-in | `config.conf` (in package) | Ships with npm, includes 22 AI CLI tools. Updated with `npm update`. |
+| Built-in | `config.conf` (in package) | Ships with npm, includes 24 AI CLI tools. Updated with `npm update`. |
 | User | `~/.config/ai-skill-link/config.conf` | Your custom overrides. Never touched by updates. |
 
 User config entries override built-in ones with the same name.

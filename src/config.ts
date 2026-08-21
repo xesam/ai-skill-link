@@ -83,7 +83,7 @@ function expandConfigPaths(source: ConfigMap): ConfigMap {
   return result;
 }
 
-let cachedConfig: { sources: ConfigMap; clis: ConfigMap } | null = null;
+let cachedConfig: { sources: ConfigMap; clis: ConfigMap; clisProject: ConfigMap } | null = null;
 
 function loadConfigs(): void {
   const builtin = builtinConfigPath();
@@ -92,6 +92,8 @@ function loadConfigs(): void {
   cachedConfig = {
     sources: expandConfigPaths(merged.get('source') || {}),
     clis: expandConfigPaths(merged.get('clis') || {}),
+    // Project-level paths are relative (e.g. ".pi/skills"), so no ~-expansion.
+    clisProject: merged.get('clis-project') || {},
   };
 }
 
@@ -136,6 +138,15 @@ export function cliTargetDir(cli: string): string | undefined {
 
 export function allCliNames(): string[] {
   return Object.keys(getCLIs()).sort();
+}
+
+export function getProjectCLIs(): ConfigMap {
+  if (cachedConfig === null) loadConfigs();
+  return cachedConfig!.clisProject;
+}
+
+export function cliProjectDir(cli: string): string | undefined {
+  return getProjectCLIs()[cli];
 }
 
 export function clearConfigCache(): void {

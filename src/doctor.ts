@@ -1,6 +1,6 @@
 import { readdirSync, readlinkSync, statSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
-import { getCLIs, getSources } from './config.js';
+import { getCLIs, getSources, cliProjectDir } from './config.js';
 import { listSkills, isSkillDir } from './scanner.js';
 import { applyProjectPath } from './linker.js';
 
@@ -35,7 +35,7 @@ function resolveCliEntries(cliFilter: string | undefined, projectRoot?: string):
   if (projectRoot) {
     entries = entries.map((e) => ({
       name: e.name,
-      dir: applyProjectPath(e.name, e.dir, projectRoot),
+      dir: applyProjectPath(e.name, e.dir, projectRoot, cliProjectDir(e.name)),
     }));
   }
 

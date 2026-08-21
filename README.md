@@ -22,22 +22,18 @@ graph LR
 
     subgraph T["AI CLI 工具"]
         D["Claude Code"]
-        E["Cursor"]
         F["Codex"]
-        G["Gemini CLI"]
-        H["Windsurf"]
-        I["Qwen Code"]
+        J["Pi"]
+        K["......"]
     end
 
     A -->|软链接| LINK
     B -->|软链接| LINK
     C -->|软链接| LINK
     LINK -->|软链接| D
-    LINK -->|软链接| E
     LINK -->|软链接| F
-    LINK -->|软链接| G
-    LINK -->|软链接| H
-    LINK -->|软链接| I
+    LINK -->|软链接| J
+    LINK -->|软链接| K
 ```
 
 **工作方式：**
@@ -401,7 +397,7 @@ skill-link --all --cli claude-code --project . --unlink
 
 | 来源 | 位置 | 说明 |
 |------|------|------|
-| 内置 | `config.conf`（npm 包内） | 随 npm 包发布，内置 22 个 AI CLI 工具。随 `npm update` 自动更新。 |
+| 内置 | `config.conf`（npm 包内） | 随 npm 包发布，内置 24 个 AI CLI 工具。随 `npm update` 自动更新。 |
 | 用户 | `~/.config/ai-skill-link/config.conf` | 你的自定义覆盖配置。更新永远不会触及。 |
 
 用户配置中同名条目优先级更高。
