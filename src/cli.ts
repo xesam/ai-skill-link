@@ -15,6 +15,7 @@ import {
   allCliNames,
   defaultSource,
   resolveSource,
+  cliProjectDir,
 } from './config.js';
 import { listSkills, findSkillPath, sourceEntries, collectAllSkills, isSkillDir } from './scanner.js';
 import {
@@ -377,7 +378,7 @@ export async function main(args: string[]): Promise<number> {
     if (!targetDir) continue;
 
     if (projectRoot) {
-      targetDir = applyProjectPath(cliName, targetDir, projectRoot);
+      targetDir = applyProjectPath(cliName, targetDir, projectRoot, cliProjectDir(cliName));
     }
 
     if (cliNames.length > 1) {

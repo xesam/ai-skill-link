@@ -22,22 +22,18 @@ graph LR
 
     subgraph T["AI CLI 工具"]
         D["Claude Code"]
-        E["Cursor"]
         F["Codex"]
-        G["Gemini CLI"]
-        H["Windsurf"]
-        I["Qwen Code"]
+        J["Pi"]
+        K["......"]
     end
 
     A -->|软链接| LINK
     B -->|软链接| LINK
     C -->|软链接| LINK
     LINK -->|软链接| D
-    LINK -->|软链接| E
     LINK -->|软链接| F
-    LINK -->|软链接| G
-    LINK -->|软链接| H
-    LINK -->|软链接| I
+    LINK -->|软链接| J
+    LINK -->|软链接| K
 ```
 
 **工作方式：**
@@ -358,6 +354,13 @@ skill-link --doctor --project ~/work/my-app
 项目：  ~/work/my-app/.claude/skills/<skill>
 ```
 
+大多数 CLI 工具的全局路径和项目级路径结构一致，仅前缀不同（`~` → 项目路径），skill-link 会自动推导。少数工具（如 pi）在项目级使用不同的目录结构——这类工具通过 `[clis-project]` 配置段显式声明项目级路径（见 [3.10 配置说明](#310-配置说明)）：
+
+```
+pi 全局：   ~/.pi/agent/skills/<skill>
+pi 项目：   ~/work/my-app/.pi/skills/<skill>       ← 结构不同，由 [clis-project] 覆盖
+```
+
 ```bash
 # 链接全部 skill 到当前项目
 skill-link --all --cli claude-code --project .
@@ -401,7 +404,7 @@ skill-link --all --cli claude-code --project . --unlink
 
 | 来源 | 位置 | 说明 |
 |------|------|------|
-| 内置 | `config.conf`（npm 包内） | 随 npm 包发布，内置 22 个 AI CLI 工具。随 `npm update` 自动更新。 |
+| 内置 | `config.conf`（npm 包内） | 随 npm 包发布，内置 24 个 AI CLI 工具。随 `npm update` 自动更新。 |
 | 用户 | `~/.config/ai-skill-link/config.conf` | 你的自定义覆盖配置。更新永远不会触及。 |
 
 用户配置中同名条目优先级更高。
@@ -417,6 +420,9 @@ oss     = ~/opensource-skills
 [clis]
 cursor  = ~/.cursor/skills
 my-tool = ~/path/to/my-tool/skills
+
+[clis-project]
+my-tool = .my-tool/skills
 ```
 
 **[source] 配置说明：**
@@ -439,6 +445,18 @@ my-tool = ~/path/to/my-tool/skills
 - `~` 自动展开为用户主目录
 - 运行 `skill-link --list-clis` 查看当前合并后的完整列表
 - `skill-link --cli all` 会操作所有已配置的 CLI 工具
+
+**[clis-project] 配置说明：**
+
+为使用 `--project` 时路径结构与全局不同的 CLI 工具显式声明项目级路径：
+
+- 大多数工具的全局路径和项目级路径仅前缀不同（`~` → 项目路径），skill-link 自动推导，无需在此声明
+- 少数工具（如 pi）的项目级目录结构与全局不同，需要在此显式声明：
+  - `pi` 全局路径 `~/.pi/agent/skills`，项目级路径 `.pi/skills`，结构不同，需要覆盖
+- 条目为相对路径（不以 `~` 开头，不展开 home 目录）
+- 未列出的工具回退到自动推导（`~` → 项目路径替换）
+- 内置已声明：`pi = .pi/skills`
+- 用户配置中同名条目优先级更高
 
 ### 3.11 返回码
 

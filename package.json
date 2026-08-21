@@ -1,6 +1,6 @@
 {
   "name": "ai-skill-link",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Bridge skills from configured sources into AI CLI tools via symlinks — no central store, no copies.",
   "license": "MIT",
   "author": "xesam",

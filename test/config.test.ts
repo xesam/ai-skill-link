@@ -8,6 +8,8 @@ import {
   getSources,
   getRepos,
   getCLIs,
+  getProjectCLIs,
+  cliProjectDir,
   resolveSource,
   resolveRepo,
   defaultSource,
@@ -157,5 +159,32 @@ describe('config', () => {
     for (let i = 1; i < names.length; i++) {
       expect(names[i].localeCompare(names[i - 1])).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('getProjectCLIs returns built-in project-level overrides', () => {
+    clearConfigCache();
+    const projectClis = getProjectCLIs();
+    expect(projectClis['pi']).toBe('.pi/skills');
+  });
+
+  it('cliProjectDir returns path for CLI with override', () => {
+    clearConfigCache();
+    expect(cliProjectDir('pi')).toBe('.pi/skills');
+  });
+
+  it('cliProjectDir returns undefined for CLI without override', () => {
+    clearConfigCache();
+    expect(cliProjectDir('claude-code')).toBeUndefined();
+  });
+
+  it('user config can add custom [clis-project] entries', () => {
+    writeFileSync(
+      testConfigFile,
+      `[clis-project]\nmy-tool = .my-tool/skills\n`,
+    );
+    clearConfigCache();
+    expect(cliProjectDir('my-tool')).toBe('.my-tool/skills');
+    // built-in entries still present
+    expect(cliProjectDir('pi')).toBe('.pi/skills');
   });
 });
