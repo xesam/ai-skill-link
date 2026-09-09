@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync, readlinkSync, existsSync, lstatSync } from 'node:fs';
+import {
+  mkdirSync,
+  writeFileSync,
+  rmSync,
+  readlinkSync,
+  existsSync,
+  lstatSync,
+  symlinkSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -196,6 +204,69 @@ describe('createSymlink and removeSymlink', () => {
 
     expect(result.status).toBe('ok');
     expect(existsSync(dst)).toBe(true);
+  });
+
+  // ------------------------------------------------------------------
+  // Moved/removed source scenarios (dangling symlinks)
+  // ------------------------------------------------------------------
+
+  it('removes a dangling symlink without --force even when expected source moved elsewhere', () => {
+    const dst = join(dstDir, 'my-skill');
+    // The skill used to live under 'old-location'; the link now dangles.
+    symlinkSync(join(testBase, 'src', 'old-location', 'my-skill'), dst);
+
+    const result = removeSymlink(dst, join(testBase, 'src', 'new-location', 'my-skill'), {});
+
+    expect(result.status).toBe('ok');
+    expect(result.message).toContain('dangling');
+    expect(lstatSync(dst, { throwIfNoEntry: false })).toBeUndefined();
+  });
+
+  it('removes a dangling symlink with unknown expected source (skill not found in any source)', () => {
+    const dst = join(dstDir, 'my-skill');
+    symlinkSync(join(testBase, 'gone'), dst); // target never existed
+
+    const result = removeSymlink(dst, '', {});
+
+    expect(result.status).toBe('ok');
+    expect(result.message).toContain('dangling');
+    expect(lstatSync(dst, { throwIfNoEntry: false })).toBeUndefined();
+  });
+
+  it('removes a dangling symlink whose target equals the expected source (source deleted)', () => {
+    const dst = join(dstDir, 'my-skill');
+    const removedSrc = join(testBase, 'src', 'removed-skill');
+    symlinkSync(removedSrc, dst); // dir never created -> dangling
+
+    const result = removeSymlink(dst, removedSrc, {});
+
+    expect(result.status).toBe('ok');
+    expect(lstatSync(dst, { throwIfNoEntry: false })).toBeUndefined();
+  });
+
+  it('conflicts for a live symlink with unknown expected source unless --force', () => {
+    const dst = join(dstDir, 'my-skill');
+    createSymlink(srcDir, dst, {}); // live link, target exists
+
+    // expectedSrc is empty: skill not found in any source, cannot verify
+    const conflict = removeSymlink(dst, '', {});
+    expect(conflict.status).toBe('conflict');
+    expect(lstatSync(dst).isSymbolicLink()).toBe(true);
+
+    const forced = removeSymlink(dst, '', { force: true });
+    expect(forced.status).toBe('ok');
+    expect(lstatSync(dst, { throwIfNoEntry: false })).toBeUndefined();
+  });
+
+  it('dry-run previews dangling removal without touching the link', () => {
+    const dst = join(dstDir, 'my-skill');
+    symlinkSync(join(testBase, 'gone'), dst);
+
+    const result = removeSymlink(dst, '', { dryRun: true });
+
+    expect(result.status).toBe('ok');
+    expect(result.message).toContain('[DRY-RUN]');
+    expect(lstatSync(dst).isSymbolicLink()).toBe(true);
   });
 });
 

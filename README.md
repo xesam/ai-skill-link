@@ -90,6 +90,19 @@ npm install -g ai-skill-link
 
 需要 Node.js >= 18。
 
+**免安装（npx）：** 只想临时用一下、不想全局安装？直接用 `npx` 运行，把下文所有 `skill-link` 替换为 `npx ai-skill-link` 即可：
+
+```bash
+# 查看可用 skill
+npx ai-skill-link --list
+
+# 注册来源并链接到所有工具
+npx ai-skill-link --add-source ~/my-skills
+npx ai-skill-link --all --cli all
+```
+
+npx 每次都会拉取最新版本，适合偶尔使用或想始终跑最新版的场景；频繁使用建议全局安装以获得更快的启动速度。
+
 ### 3.2 初始设置
 
 1. **注册来源目录：**
@@ -139,6 +152,9 @@ skill-link skill-link-example --cli claude-code
 
 # 对所有 CLI 工具 skill 目录做健康检查
 skill-link --doctor
+
+# 清理检测到的失效（断链）skill
+skill-link --doctor --fix
 
 # 链接到指定项目而非全局目录
 skill-link --all --cli claude-code --project .
@@ -227,6 +243,8 @@ skill-link old-skill --cli codex --project ~/work/old-project --unlink
 skill-link old-skill --cli codex --source ./skills --project ~/work/new-project
 ```
 
+> `--unlink` 不依赖源目录存在：源被移动/删除后，残留的断链仍可按名移除，且无需 `--force`。批量清理请用 `skill-link --doctor --fix`（见 3.7 修复模式）。
+
 **场景六：定期健康诊断**
 
 软链接多了容易出断链或重复，定期检查保持整洁：
@@ -234,9 +252,29 @@ skill-link old-skill --cli codex --source ./skills --project ~/work/new-project
 ```bash
 skill-link --doctor --verbose
 
-# 发现断链后，用 --force 重新链接修复
-skill-link --all --cli all --force
+# 清理检测到的失效链接（skill 移动过位置时加 --relink 自动重新指向）
+skill-link --doctor --fix
 ```
+
+**场景七：skill 源被移动后的清理与修复**
+
+原始 skill 目录被移动、重命名或删除后，已安装的软链接会失效（断链）：
+
+```bash
+# 1. 诊断：查看断链，以及哪些可以自动修复（[HINT] 表示可重新指向）
+skill-link --doctor
+
+# 2a. skill 已在新位置重新注册 → 重新指向新位置（推荐）
+skill-link --doctor --fix --relink
+
+# 2b. skill 已不再需要 → 清理全部失效链接
+skill-link --doctor --fix
+
+# 3. 单个清理：源失效后按名移除依然可用（断链无需 --force）
+skill-link old-skill --cli claude-code --unlink
+```
+
+`--all --unlink` 只会移除“当前源中仍然存在”的 skill；批量清理失效链接请使用 `--doctor --fix`。
 
 ### 3.5 常用命令
 
@@ -317,7 +355,7 @@ skill-link --add-source ~/more-skills --dry-run
 
 ### 3.7 健康检查（`--doctor`）
 
-`--doctor` 命令扫描所有已配置的 CLI 工具目录和 skill 仓库，报告问题但不做任何修改：
+`--doctor` 命令扫描所有已配置的 CLI 工具目录和 skill 仓库，默认只报告问题不做任何修改；配合 `--fix` 可自动清理失效链接（见下方修复模式）：
 
 | 检查项 | 状态标签 | 说明 |
 |--------|----------|------|
@@ -342,6 +380,33 @@ skill-link --doctor --project ~/work/my-app
 ```
 
 退出码为 0 表示一切正常，非 0 表示发现问题。
+
+#### 修复模式（`--doctor --fix`）
+
+`--fix` 在 `--doctor` 检测的基础上自动清理失效链接：
+
+```bash
+# 清理所有 CLI 工具目录中的失效（断链）skill
+skill-link --doctor --fix
+
+# 只处理指定 CLI 工具 / 项目目录
+skill-link --doctor --fix --cli claude-code --project .
+
+# 预览将执行的动作（不修改任何文件）
+skill-link --doctor --fix --dry-run
+
+# skill 移动过位置且已在新目录重新注册：自动重新指向新位置（而非删除）
+skill-link --doctor --fix --relink
+```
+
+**安全边界：**
+
+- 只清理 `BROKEN` 且目标确已不存在（`ENOENT`）的链接；因权限等原因无法验证的链接只报告、不清理
+- 清理动作只删除软链接本身，绝不递归删除真实目录（`ORPHAN` 永远不会被自动删除）
+- 源中已找不到、也无法重新指向的断链才会被删除；若同名 skill 在当前源中存在，报告模式会输出 `[HINT]` 提示，可用 `--fix --relink` 重新指向而非删除
+- `--relink` 只重新指向，不删除；删除动作始终只删链接本身
+
+**退出码：** `--doctor` 返回发现的问题数；配合 `--fix` 时返回**修复后剩余**的问题数（全部修复完为 0），`--dry-run` 下返回“执行后预期”的剩余问题数。
 
 ### 3.8 项目级链接（`--project`）
 
@@ -390,6 +455,8 @@ skill-link --all --cli claude-code --project . --unlink
 | `--source <dir>` | `-s` | 指定 skill 仓库（命名 repo 或路径） |
 | `--project <dir>` | `-p` | 链接到项目级 skill 目录而非全局（将 CLI 路径中的 `~` 替换为项目路径） |
 | `--doctor` | `-D` | 运行健康检查（断链、重复 skill、缺失 SKILL.md） |
+| `--fix` | | 配合 `--doctor`：自动清理失效（断链）链接而非仅报告 |
+| `--relink` | | 配合 `--doctor --fix`：对可在源中重新找到的 skill 重新指向新位置，而非删除 |
 | `--list` | `-l` | 列出仓库中的可用 skill |
 | `--list-clis` | | 列出已配置的 CLI 工具及其目录 |
 | `--add-source <path...>` | | 注册一个或多个 skills 目录为命名来源（写入用户配置，无需 `--cli`） |
@@ -467,3 +534,5 @@ my-tool = .my-tool/skills
 | `2` | skill 不存在或无有效 `SKILL.md` |
 | `3` | 目标冲突（已存在且未使用 `--force`） |
 | `4` | 其他链接失败 |
+
+`--doctor` 模式例外：返回值是发现的问题数量（配合 `--fix` 时为修复后剩余数量，截断到 255），非 0 即表示仍有问题。

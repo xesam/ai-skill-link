@@ -49,6 +49,14 @@ export function createProgram(): Command {
     .option('--relative', 'Create relative symlinks instead of absolute symlinks')
     .option('-p, --project <dir>', 'Target project-level skills dir instead of global')
     .option('-D, --doctor', 'Run health checks')
+    .option(
+      '--fix',
+      'With --doctor: remove dangling symlinks (target missing) instead of only reporting them',
+    )
+    .option(
+      '--relink',
+      'With --doctor --fix: re-link dangling symlinks whose skill moved instead of removing them',
+    )
     .option('--add-source <paths...>', 'Register skills directories as named sources in the user config')
     .option('--remove-source <names...>', 'Remove named sources from the user config')
     .option('--list-sources', 'List configured sources and exit')
@@ -65,6 +73,7 @@ Exit codes:
   2  Skill not found or invalid SKILL.md
   3  Target conflict (exists and no --force)
   4  Other link failure
+  n  --doctor: issues found (with --fix: issues remaining after the run)
 `,
     );
 
@@ -225,6 +234,12 @@ function resolveSourceRoot(opts: any): string {
       verbose(opts, 'no default source; using multi-source by-name lookup');
       return '';
     }
+    // --unlink only needs skill names (the destination is derived from the
+    // CLI skills dir), so removal works even with no source configured.
+    if (opts.unlink) {
+      verbose(opts, 'no source configured; --unlink proceeds by name only');
+      return '';
+    }
     fail(
       'No source configured. Register one with `skill-link --add-source <path>` or set [source] default in ~/.config/ai-skill-link/config.conf',
       EXIT_USAGE,
@@ -233,9 +248,20 @@ function resolveSourceRoot(opts: any): string {
 
   try {
     if (!statSync(root).isDirectory()) {
+      // The source may have been moved/deleted — that is exactly when users
+      // need to unlink. Proceed by name; dangling links are removed safely
+      // without --force (see removeSymlink).
+      if (opts.unlink) {
+        verbose(opts, `source directory missing; --unlink proceeds by name only: ${root}`);
+        return resolve(root);
+      }
       fail(`Source directory does not exist: ${root}`, EXIT_USAGE);
     }
   } catch {
+    if (opts.unlink) {
+      verbose(opts, `source directory missing; --unlink proceeds by name only: ${root}`);
+      return resolve(root);
+    }
     fail(`Source directory does not exist: ${root}`, EXIT_USAGE);
   }
 
@@ -272,6 +298,13 @@ function collectSkills(
         const found = findSkillPath(skill);
         if (found) {
           skillPairs.push({ name: skill, path: found });
+        } else if (opts.unlink) {
+          // Unlinking does not require the skill to exist in any source:
+          // the skill may have been moved or deleted (its link is dangling).
+          // Removal by name is guarded inside removeSymlink — dangling
+          // links go without --force, live unverifiable ones require it.
+          verbose(opts, `skill '${skill}' not found in sources; unlinking by name`);
+          skillPairs.push({ name: skill, path: '' });
         } else {
           const fallback = join(sourceRoot, skill);
           if (isSkillDir(fallback)) {
@@ -308,9 +341,20 @@ export async function main(args: string[]): Promise<number> {
   const opts = program.opts();
   const positionalSkills: string[] = program.args;
 
+  if ((opts.fix || opts.relink) && !opts.doctor) {
+    fail('--fix/--relink can only be used with --doctor', EXIT_USAGE);
+  }
+  if (opts.relink && !opts.fix) {
+    fail('--relink requires --fix', EXIT_USAGE);
+  }
+
   if (opts.doctor) {
     try {
-      const issueCount = doctor(opts.cli, opts.project, opts.verbose);
+      const issueCount = doctor(opts.cli, opts.project, opts.verbose, {
+        fix: !!opts.fix,
+        relink: !!opts.relink,
+        dryRun: !!opts.dryRun,
+      });
       return Math.min(issueCount, 255);
     } catch (err: any) {
       fail(err.message, EXIT_USAGE);

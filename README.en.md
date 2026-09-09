@@ -90,6 +90,19 @@ npm install -g ai-skill-link
 
 Requires Node.js >= 18.
 
+**No install (npx):** Just want to try it without a global install? Run it with `npx` — replace every `skill-link` below with `npx ai-skill-link`:
+
+```bash
+# List available skills
+npx ai-skill-link --list
+
+# Register a source and link to all tools
+npx ai-skill-link --add-source ~/my-skills
+npx ai-skill-link --all --cli all
+```
+
+npx fetches the latest version on each run — handy for occasional use or always running the newest release. For frequent use, a global install starts faster.
+
 ### 3.2 Initial Setup
 
 1. **Register your source directories:**
@@ -139,6 +152,9 @@ skill-link skill-link-example --cli claude-code
 
 # Run health checks on all CLI tool skill directories
 skill-link --doctor
+
+# Clean up broken (dangling) links detected by --doctor
+skill-link --doctor --fix
 
 # Link skills to a specific project instead of global
 skill-link --all --cli claude-code --project .
@@ -227,6 +243,8 @@ skill-link old-skill --cli codex --project ~/work/old-project --unlink
 skill-link old-skill --cli codex --source ./skills --project ~/work/new-project
 ```
 
+> `--unlink` does not require the source to exist: after a source has been moved or deleted, leftover dangling links can still be removed by name without `--force`. For bulk cleanup use `skill-link --doctor --fix` (see Repair Mode in 3.7).
+
 **Scenario 6: Routine Health Checks**
 
 Symlinks can break or duplicate over time. Run periodic checks to keep things clean:
@@ -234,9 +252,29 @@ Symlinks can break or duplicate over time. Run periodic checks to keep things cl
 ```bash
 skill-link --doctor --verbose
 
-# Re-link to fix broken symlinks
-skill-link --all --cli all --force
+# Remove broken links found by the check (add --relink when a skill moved)
+skill-link --doctor --fix
 ```
+
+**Scenario 7: Cleanup & Repair After Moving a Skill Source**
+
+After the original skill directory is moved, renamed, or deleted, installed symlinks dangle:
+
+```bash
+# 1. Diagnose: see broken links and what can be auto-repaired ([HINT] = re-linkable)
+skill-link --doctor
+
+# 2a. Skill re-registered at its new location -> re-point the links (recommended)
+skill-link --doctor --fix --relink
+
+# 2b. Skill no longer needed -> remove all dangling links
+skill-link --doctor --fix
+
+# 3. Remove a single stale link: works even when the source is gone (no --force needed)
+skill-link old-skill --cli claude-code --unlink
+```
+
+`--all --unlink` only removes skills that still exist in your sources; use `--doctor --fix` for bulk cleanup of broken links.
 
 ### 3.5 Common Commands
 
@@ -317,7 +355,7 @@ skill-link --add-source ~/more-skills --dry-run
 
 ### 3.7 Health Checks (`--doctor`)
 
-The `--doctor` command scans all configured CLI tool directories and skill sources, reporting issues without making changes:
+The `--doctor` command scans all configured CLI tool directories and skill sources. By default it only reports issues; with `--fix` it can also clean up broken links automatically (see Repair Mode below):
 
 | Check | Status | Description |
 |-------|--------|-------------|
@@ -342,6 +380,33 @@ skill-link --doctor --project ~/work/my-app
 ```
 
 Exit code is 0 when all checks pass, non-zero when issues are found.
+
+#### Repair Mode (`--doctor --fix`)
+
+`--fix` automatically cleans up invalid links on top of what `--doctor` detects:
+
+```bash
+# Remove dangling links from all CLI tool directories
+skill-link --doctor --fix
+
+# Limit to a specific CLI tool / project directory
+skill-link --doctor --fix --cli claude-code --project .
+
+# Preview the actions (no files are modified)
+skill-link --doctor --fix --dry-run
+
+# Skill moved and re-registered at a new location: re-point instead of remove
+skill-link --doctor --fix --relink
+```
+
+**Safety guarantees:**
+
+- Only `BROKEN` links whose target is verifiably gone (`ENOENT`) are cleaned; links that cannot be verified (permission issues, loops, ...) are reported but never touched
+- Cleanup only unlinks the symlink itself — real directories are never recursively deleted (`ORPHAN` is never auto-removed)
+- A dangling link is removed only when its skill cannot be relocated; if a skill with the same name exists in a current source, report mode prints a `[HINT]` and `--fix --relink` re-points it instead
+- `--relink` only re-points links; the removal path only ever deletes the link itself
+
+**Exit codes:** `--doctor` returns the number of issues found; with `--fix` it returns the number of issues **remaining after the run** (0 when everything was fixed). Under `--dry-run` it returns the expected post-fix count.
 
 ### 3.8 Project-Level Linking (`--project`)
 
@@ -390,6 +455,8 @@ skill-link --all --cli claude-code --project . --unlink
 | `--source <dir>` | `-s` | Specify skill source (name or path) |
 | `--project <dir>` | `-p` | Target a project-level skills directory instead of global (replaces `~` in CLI path) |
 | `--doctor` | `-D` | Run health checks (broken symlinks, duplicates, missing SKILL.md) |
+| `--fix` | | With `--doctor`: remove dangling (broken) links instead of only reporting them |
+| `--relink` | | With `--doctor --fix`: re-link skills found in current sources instead of removing the dangling link |
 | `--list` | `-l` | List available skills in source |
 | `--list-clis` | | List configured CLI tools and their directories |
 | `--add-source <path...>` | | Register one or more skills dirs as named sources (writes user config; no `--cli` needed) |
@@ -467,3 +534,5 @@ Explicitly declares project-level skills directory paths for CLI tools whose str
 | `2` | Skill not found or no valid `SKILL.md` |
 | `3` | Target conflict (exists and `--force` not used) |
 | `4` | Other link failures |
+
+Exception: `--doctor` returns the number of issues found (with `--fix`: the number remaining after the run, clamped to 255). Any non-zero value means issues remain.
