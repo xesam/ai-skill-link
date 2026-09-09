@@ -1,8 +1,8 @@
-import { readdirSync, readlinkSync, statSync, lstatSync } from 'node:fs';
+import { readdirSync, readlinkSync, statSync, lstatSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { getCLIs, getSources, cliProjectDir } from './config.js';
-import { listSkills, isSkillDir } from './scanner.js';
-import { applyProjectPath } from './linker.js';
+import { listSkills, findSkillPath } from './scanner.js';
+import { applyProjectPath, createSymlink } from './linker.js';
 
 interface CliEntry {
   name: string;
@@ -64,8 +64,24 @@ function scanAllSources(): SourceScan[] {
   return results;
 }
 
-export function doctor(cliFilter?: string, projectRoot?: string, verbose?: boolean): number {
+export interface DoctorOptions {
+  /** Remove dangling (target-missing) symlinks instead of only reporting them. */
+  fix?: boolean;
+  /** With fix: re-link skills that moved to a new source location instead of removing the link. */
+  relink?: boolean;
+  /** Preview fix actions without modifying anything. */
+  dryRun?: boolean;
+}
+
+export function doctor(
+  cliFilter?: string,
+  projectRoot?: string,
+  verbose?: boolean,
+  options: DoctorOptions = {},
+): number {
+  const { fix = false, relink = false, dryRun = false } = options;
   let issueCount = 0;
+  let fixedCount = 0;
 
   const cliEntries = resolveCliEntries(cliFilter, projectRoot);
   const sourceScans = scanAllSources();
@@ -89,16 +105,65 @@ export function doctor(cliFilter?: string, projectRoot?: string, verbose?: boole
       }
 
       if (lst.isSymbolicLink()) {
+        // Distinguish a truly-missing target (ENOENT) from other stat
+        // failures (EACCES, ELOOP, ...). Only ENOENT links are safe to
+        // auto-remove: anything else may be a healthy link we simply cannot
+        // verify right now (permissions, loops, ...).
+        let statErr: string | undefined;
         try {
           statSync(fullPath);
+        } catch (err: any) {
+          statErr = err?.code ?? 'UNKNOWN';
+        }
+        if (statErr === undefined) continue; // live symlink
+
+        let target: string;
+        try {
+          target = readlinkSync(fullPath);
         } catch {
-          let target: string;
-          try {
-            target = readlinkSync(fullPath);
-          } catch {
-            target = '(unreadable)';
+          target = '(unreadable)';
+        }
+
+        const cleanable = statErr === 'ENOENT';
+        // If the skill merely moved and was re-registered, it can be re-linked.
+        const newLocation = cleanable ? findSkillPath(entry) : undefined;
+
+        if (fix && cleanable) {
+          if (newLocation && relink) {
+            if (dryRun) {
+              process.stdout.write(`[DRY-RUN] relink ${fullPath} -> ${newLocation}\n`);
+              fixedCount++;
+            } else {
+              const res = createSymlink(newLocation, fullPath, { force: true });
+              process.stdout.write(`${res.message}\n`);
+              if (res.status === 'ok') {
+                fixedCount++;
+              } else {
+                issueCount++;
+              }
+            }
+          } else {
+            // Removal only ever unlinks the symlink itself — never a real
+            // directory — so this is safe and idempotent.
+            if (dryRun) {
+              process.stdout.write(`[DRY-RUN] rm ${fullPath} (dangling)\n`);
+            } else {
+              unlinkSync(fullPath);
+              const hint = newLocation
+                ? ` (skill now at ${newLocation}; rerun with --relink to re-link instead)`
+                : '';
+              process.stdout.write(`[FIXED] removed dangling link: ${fullPath}${hint}\n`);
+            }
+            fixedCount++;
           }
-          process.stdout.write(`[BROKEN] ${fullPath} -> ${target}\n`);
+        } else {
+          const note = cleanable ? '' : ` (stat: ${statErr}, not auto-fixable)`;
+          process.stdout.write(`[BROKEN] ${fullPath} -> ${target}${note}\n`);
+          if (newLocation) {
+            process.stdout.write(
+              `[HINT] '${entry}' found at ${newLocation}; rerun with --fix --relink to re-link\n`,
+            );
+          }
           issueCount++;
         }
       } else if (lst.isDirectory()) {
@@ -176,7 +241,11 @@ export function doctor(cliFilter?: string, projectRoot?: string, verbose?: boole
     }
   }
 
-  if (issueCount === 0) {
+  if (fixedCount > 0 && issueCount === 0) {
+    process.stdout.write(`\n${fixedCount} issue(s) fixed. All checks passed.\n`);
+  } else if (fixedCount > 0) {
+    process.stdout.write(`\n${fixedCount} fixed, ${issueCount} issue(s) remaining.\n`);
+  } else if (issueCount === 0) {
     process.stdout.write('All checks passed.\n');
   } else {
     process.stdout.write(`\n${issueCount} issue(s) found.\n`);

@@ -6,6 +6,7 @@ import {
   existsSync,
   lstatSync,
   rmSync,
+  statSync,
 } from 'node:fs';
 import { relative, dirname, resolve, join } from 'node:path';
 import { homedir } from 'node:os';
@@ -158,27 +159,47 @@ export function removeSymlink(
   if (lst.isSymbolicLink()) {
     const current = readlinkSync(dst);
 
-    if (!isSameLinkTarget(dst, current, expectedSrc)) {
-      if (!force) {
-        return {
-          status: 'conflict',
-          message: `[ERR] symlink points elsewhere (${current}), use --force to remove: ${dst}`,
-          destination: dst,
-        };
+    // A dangling symlink (its target no longer exists — the source was moved,
+    // renamed, or deleted) can always be removed without --force: the link
+    // itself is the only thing being deleted, and it is dead weight anyway.
+    // This is exactly the state users end up in after moving a skill source.
+    let live = true;
+    try {
+      statSync(dst);
+    } catch {
+      live = false;
+    }
+
+    if (live) {
+      // The link still resolves. Only remove it without --force when we can
+      // verify it points at the expected source. An empty expectedSrc means
+      // the skill was not found in any source, so we cannot verify ownership.
+      const verified = !!expectedSrc && isSameLinkTarget(dst, current, expectedSrc);
+      if (!verified) {
+        if (!force) {
+          const reason = expectedSrc
+            ? `symlink points elsewhere (${current})`
+            : `cannot verify symlink target (${current}); skill not found in sources`;
+          return {
+            status: 'conflict',
+            message: `[ERR] ${reason}, use --force to remove: ${dst}`,
+            destination: dst,
+          };
+        }
       }
     }
 
     if (dryRun) {
       return {
         status: 'ok',
-        message: `[DRY-RUN] rm ${dst}`,
+        message: `[DRY-RUN] rm ${dst}${live ? '' : ' (dangling)'}`,
         destination: dst,
       };
     }
     unlinkSync(dst);
     return {
       status: 'ok',
-      message: `[OK] unlinked: ${dst}`,
+      message: `[OK] unlinked: ${dst}${live ? '' : ' (dangling)'}`,
       destination: dst,
     };
   }
