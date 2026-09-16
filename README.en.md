@@ -419,11 +419,13 @@ Global:    ~/.claude/skills/<skill>
 Project:   ~/work/my-app/.claude/skills/<skill>
 ```
 
-Most CLI tools use the same path structure for both global and project-level directories — only the prefix differs (`~` → project path). skill-link derives this automatically. A few tools (e.g., pi) use a *different* directory structure at the project level — these are handled via the `[clis-project]` config section (see [Section 3.10](#310-configuration)):
+Most CLI tools use the same path structure for both global and project-level directories — only the prefix differs (`~` → project path). skill-link derives this automatically. A few tools (e.g., pi, opencode) use a *different* directory structure at the project level — these are handled via the `[clis-project]` config section (see [Section 3.10](#310-configuration)):
 
 ```
-pi global:   ~/.pi/agent/skills/<skill>
-pi project:  ~/work/my-app/.pi/skills/<skill>       ← different structure, overridden by [clis-project]
+pi global:        ~/.pi/agent/skills/<skill>
+pi project:       ~/work/my-app/.pi/skills/<skill>          ← different structure, overridden by [clis-project]
+opencode global:  ~/.config/opencode/skills/<skill>        (XDG-style path)
+opencode project: ~/work/my-app/.opencode/skills/<skill>    ← different structure, overridden by [clis-project]
 ```
 
 ```bash
@@ -471,7 +473,7 @@ Configuration is layered:
 
 | Source | Location | Description |
 |--------|----------|-------------|
-| Built-in | `config.conf` (in package) | Ships with npm, includes 24 AI CLI tools. Updated with `npm update`. |
+| Built-in | `config.conf` (in package) | Ships with npm, includes 25 AI CLI tools. Updated with `npm update`. |
 | User | `~/.config/ai-skill-link/config.conf` | Your custom overrides. Never touched by updates. |
 
 User config entries override built-in ones with the same name.
@@ -518,11 +520,12 @@ Defines AI CLI tools and their skills directory paths:
 Explicitly declares project-level skills directory paths for CLI tools whose structure differs from the global path when using `--project`:
 
 - Most tools use the same path structure for both global and project-level directories (only the prefix differs: `~` → project path). skill-link derives this automatically — no entry needed here.
-- A few tools (e.g., pi) use a *different* directory structure at the project level and need an explicit entry:
+- A few tools (e.g., pi, opencode) use a *different* directory structure at the project level and need an explicit entry:
   - `pi` global path `~/.pi/agent/skills`, project-level path `.pi/skills` — different structure, needs override.
+  - `opencode` global path `~/.config/opencode/skills` (XDG-style), project-level path `.opencode/skills` — different structure, needs override.
 - Entries are relative paths (no `~` prefix, no home expansion).
 - Unlisted tools fall back to automatic derivation (`~` → project path replacement).
-- Built-in entry: `pi = .pi/skills`.
+- Built-in entries: `pi = .pi/skills`, `opencode = .opencode/skills`.
 - User config entries override built-in ones with the same name.
 
 ### 3.11 Exit Codes

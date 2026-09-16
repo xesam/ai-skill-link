@@ -57,6 +57,7 @@ describe('config', () => {
     expect(Object.keys(clis).length).toBeGreaterThan(0);
     expect(clis['claude-code']).toBe(join(homedir(), '.claude/skills'));
     expect(clis['cursor']).toBe(join(homedir(), '.cursor/skills'));
+    expect(clis['opencode']).toBe(join(homedir(), '.config/opencode/skills'));
   });
 
   it('user config overrides builtin CLI entries', () => {
@@ -165,11 +166,13 @@ describe('config', () => {
     clearConfigCache();
     const projectClis = getProjectCLIs();
     expect(projectClis['pi']).toBe('.pi/skills');
+    expect(projectClis['opencode']).toBe('.opencode/skills');
   });
 
   it('cliProjectDir returns path for CLI with override', () => {
     clearConfigCache();
     expect(cliProjectDir('pi')).toBe('.pi/skills');
+    expect(cliProjectDir('opencode')).toBe('.opencode/skills');
   });
 
   it('cliProjectDir returns undefined for CLI without override', () => {

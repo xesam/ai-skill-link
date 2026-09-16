@@ -54,6 +54,19 @@ describe('applyProjectPath', () => {
     expect(result).toBe('/my-project/.pi/skills');
   });
 
+  it('uses override for XDG-style global path (opencode)', () => {
+    const home = homedir();
+    // Without the override, automatic derivation would produce the wrong
+    // path: <project>/.config/opencode/skills instead of .opencode/skills
+    const result = applyProjectPath(
+      'opencode',
+      join(home, '.config/opencode/skills'),
+      '/my-project',
+      '.opencode/skills',
+    );
+    expect(result).toBe('/my-project/.opencode/skills');
+  });
+
   it('throws for non-home-relative path without override', () => {
     expect(() =>
       applyProjectPath('claude-code', '/usr/local/skills', '/my-project'),
